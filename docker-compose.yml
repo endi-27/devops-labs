@@ -1,0 +1,146 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: devops_postgres
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: ${APP_CONFIG__DB__USER:-devops_user}
+      POSTGRES_PASSWORD: ${APP_CONFIG__DB__PASSWORD:-devops_secret_password}
+      POSTGRES_DB: ${APP_CONFIG__DB__NAME:-devops_db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "127.0.0.1:${APP_CONFIG__DB__PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups:z
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_CONFIG__DB__USER:-devops_user} -d ${APP_CONFIG__DB__NAME:-devops_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devops_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: devops_redis
+    restart: unless-stopped
+    environment:
+      REDISCLI_AUTH: ${APP_CONFIG__REDIS__PASSWORD:-devops_redis_password}
+    command: >
+      --requirepass ${APP_CONFIG__REDIS__PASSWORD:-devops_redis_password}
+      --maxmemory 256mb
+      --maxmemory-policy volatile-lru
+      --save 60 1
+    ports:
+      - "127.0.0.1:${APP_CONFIG__REDIS__PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 300M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${APP_CONFIG__REDIS__PASSWORD:-devops_redis_password}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devops_network
+
+  migrator:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: devops_migrator
+    restart: "no"
+    command: ["sh", "-c", "alembic upgrade head && python scripts/seed_initial_data.py"]
+    env_file:
+      - .env
+    environment:
+      APP_CONFIG__DB__HOST: postgres
+      APP_CONFIG__REDIS__HOST: redis
+      PYTHONPATH: /app
+    volumes:
+      - ./backend/alembic:/app/alembic:ro,z
+      - ./backend/scripts:/app/scripts:ro,z
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - devops_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: devops_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_CONFIG__DB__HOST: postgres
+      APP_CONFIG__REDIS__HOST: redis
+      PYTHONPATH: /app
+      APP_CONFIG__LOG__DIR: /logs
+      APP_CONFIG__STORAGE__DIR: /storage
+    volumes:
+      - ./backend:/app:z
+      - /app/.venv
+      - ./logs:/logs:z
+      - ./storage:/storage:z
+    ports:
+      - "${HTTP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - devops_network
+
+  db_backup:
+    image: postgres:16-alpine
+    container_name: devops_db_backup
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_CONFIG__DB__HOST: postgres
+    volumes:
+      - ./backups:/backups:z
+      - ./logs:/var/log:z
+      - ./scripts/pg_backup_rotated.sh:/pg_backup_rotated.sh:ro,z
+    entrypoint: ["/bin/sh", "-c", "export -p > /etc/environment && echo \"0 * * * * /bin/sh /pg_backup_rotated.sh >> /var/log/backup.log 2>&1\" | crontab - && crond -f -l 2"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - devops_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  devops_network:
+    driver: bridge
