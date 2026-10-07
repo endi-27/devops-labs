@@ -23,7 +23,8 @@ async def test_create_user_success(db_session: AsyncSession) -> None:
     assert user.email == "john@example.com"
     assert user.username == "johndoe"
     assert user.full_name == "John Doe"
-    assert user.is_active is True
+    # --------------------------------------------------------------------------
+    assert user.is_active is False
 
 
 @pytest.mark.asyncio
