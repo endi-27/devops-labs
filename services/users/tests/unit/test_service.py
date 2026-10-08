@@ -1,4 +1,3 @@
-from ast import Try
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
