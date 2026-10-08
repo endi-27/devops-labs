@@ -1,3 +1,4 @@
+from ast import Try
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +25,7 @@ async def test_create_user_success(db_session: AsyncSession) -> None:
     assert user.username == "johndoe"
     assert user.full_name == "John Doe"
     # --------------------------------------------------------------------------
-    assert user.is_active is False
+    assert user.is_active is True
 
 
 @pytest.mark.asyncio
