@@ -35,8 +35,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Orders Service API",
-        version="0.1.0",
+        title="Orders Service API v1.0.0",
+        version="1.0.0",
         description="DevOps Platform Orders Microservice",
         lifespan=lifespan,
     )
@@ -58,7 +58,7 @@ def create_app() -> FastAPI:
             "service": "orders-service",
             "status": "ok",
             "environment": settings.environment,
-            "version": "0.1.0",
+            "version": "1.0.0",
         }
 
     @app.get("/ready", tags=["Health"], status_code=status.HTTP_200_OK)

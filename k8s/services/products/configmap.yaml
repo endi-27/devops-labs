@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: products-config
+  namespace: devops-lab3
+  labels:
+    app: products
+    app.kubernetes.io/name: products
+    app.kubernetes.io/part-of: devops-platform
+data:
+  APP_CONFIG__ENVIRONMENT: "k8s"
+  APP_CONFIG__LOG__LEVEL: "INFO"
+  APP_CONFIG__DB__HOST: "postgres"
+  APP_CONFIG__DB__PORT: "5432"
+  APP_CONFIG__DB__NAME: "products_db"
+  APP_CONFIG__DB__USER: "devops_user"
+  APP_CONFIG__REDIS__HOST: "redis"
+  APP_CONFIG__REDIS__PORT: "6379"
+  HTTP_PORT: "8002"

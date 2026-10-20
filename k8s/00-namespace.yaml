@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: devops-lab3
+  labels:
+    name: devops-lab3
+    app.kubernetes.io/part-of: devops-platform

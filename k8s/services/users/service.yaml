@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: users
+  namespace: devops-lab3
+  labels:
+    app: users
+    app.kubernetes.io/name: users
+    app.kubernetes.io/part-of: devops-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: users
+  ports:
+    - name: http
+      port: 8001
+      targetPort: 8001

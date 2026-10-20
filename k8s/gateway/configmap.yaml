@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: devops-lab3
+  labels:
+    app: gateway
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: devops-platform
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+
+        log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                          '$status $body_bytes_sent "$http_referer" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+
+        access_log  /var/log/nginx/access.log  main;
+        sendfile        on;
+        keepalive_timeout  65;
+
+        upstream users_service {
+            server users:8001;
+        }
+
+        upstream products_service {
+            server products:8002;
+        }
+
+        upstream orders_service {
+            server orders:8003;
+        }
+
+        server {
+            listen 8000;
+            server_name localhost;
+
+            # Gateway health check
+            location = /health {
+                default_type application/json;
+                return 200 '{"gateway":"nginx","status":"ok"}';
+            }
+
+            # Users API
+            location /api/v1/users {
+                proxy_pass http://users_service;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+
+            # Products API
+            location /api/v1/products {
+                proxy_pass http://products_service;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+
+            # Orders API
+            location /api/v1/orders {
+                proxy_pass http://orders_service;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+
+            # Root endpoint
+            location / {
+                default_type application/json;
+                return 200 '{"service":"api-gateway","version":"1.0.0","status":"running"}';
+            }
+        }
+    }

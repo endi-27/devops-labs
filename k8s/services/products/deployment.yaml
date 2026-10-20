@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: products
+  namespace: devops-lab3
+  labels:
+    app: products
+    app.kubernetes.io/name: products
+    app.kubernetes.io/part-of: devops-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: products
+  template:
+    metadata:
+      labels:
+        app: products
+        app.kubernetes.io/name: products
+        app.kubernetes.io/part-of: devops-platform
+    spec:
+      containers:
+        - name: products
+          image: devops-products:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8002
+              name: http
+          envFrom:
+            - configMapRef:
+                name: products-config
+            - secretRef:
+                name: products-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 384Mi

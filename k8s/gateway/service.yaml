@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: devops-lab3
+  labels:
+    app: gateway
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: devops-platform
+spec:
+  type: NodePort
+  selector:
+    app: gateway
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      nodePort: 30080

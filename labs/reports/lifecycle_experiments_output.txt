@@ -1,0 +1,299 @@
+
+================================================================================
+=== ЕКСПЕРИМЕНТ 1: САМОВІДНОВЛЕННЯ (SELF-HEALING)
+================================================================================
+
+1.1 Отримання списку поточних подів users до симуляції збою:
+$ kubectl get pods -n devops-lab3 -l app=users -o wide
+NAME                     READY   STATUS    RESTARTS        AGE     IP            NODE       NOMINATED NODE   READINESS GATES
+users-75dc7945f8-cxf5z   1/1     Running   3 (5m21s ago)   5m46s   10.244.0.13   minikube   <none>           <none>
+users-75dc7945f8-hzpgw   1/1     Running   3 (5m19s ago)   5m46s   10.244.0.12   minikube   <none>           <none>
+
+1.2 Симуляція аварії: примусове видалення пода users-75dc7945f8-cxf5z...
+$ kubectl delete pod users-75dc7945f8-cxf5z -n devops-lab3
+pod "users-75dc7945f8-cxf5z" deleted
+
+1.3 Перевірка автоматичного самовідновлення (ReplicaSet негайно створив новий под взамін видаленого):
+$ kubectl get pods -n devops-lab3 -l app=users -o wide
+NAME                     READY   STATUS    RESTARTS        AGE     IP            NODE       NOMINATED NODE   READINESS GATES
+users-75dc7945f8-9jkpp   1/1     Running   0               31s     10.244.0.14   minikube   <none>           <none>
+users-75dc7945f8-hzpgw   1/1     Running   3 (5m50s ago)   6m17s   10.244.0.12   minikube   <none>           <none>
+
+$ kubectl get pods -n devops-lab3 -l app=users -o wide
+NAME                     READY   STATUS    RESTARTS        AGE     IP            NODE       NOMINATED NODE   READINESS GATES
+users-75dc7945f8-9jkpp   1/1     Running   0               34s     10.244.0.14   minikube   <none>           <none>
+users-75dc7945f8-hzpgw   1/1     Running   3 (5m53s ago)   6m20s   10.244.0.12   minikube   <none>           <none>
+
+
+================================================================================
+=== ЕКСПЕРИМЕНТ 2: МАСШТАБУВАННЯ (SCALING)
+================================================================================
+
+2.1 Масштабування кількості реплік сервісу users з 2 до 4:
+$ kubectl scale deployment users --replicas=4 -n devops-lab3
+deployment.apps/users scaled
+
+2.2 Очікування завершення розгортання реплік:
+$ kubectl rollout status deployment/users -n devops-lab3
+Waiting for deployment "users" rollout to finish: 2 of 4 updated replicas are available...
+Waiting for deployment "users" rollout to finish: 3 of 4 updated replicas are available...
+deployment "users" successfully rolled out
+
+2.3 Перевірка 4 активних подів users:
+$ kubectl get pods -n devops-lab3 -l app=users -o wide
+NAME                     READY   STATUS    RESTARTS       AGE     IP            NODE       NOMINATED NODE   READINESS GATES
+users-75dc7945f8-9jkpp   1/1     Running   0              50s     10.244.0.14   minikube   <none>           <none>
+users-75dc7945f8-bw9ck   1/1     Running   0              16s     10.244.0.15   minikube   <none>           <none>
+users-75dc7945f8-hzpgw   1/1     Running   3 (6m9s ago)   6m36s   10.244.0.12   minikube   <none>           <none>
+users-75dc7945f8-wnvhx   1/1     Running   0              16s     10.244.0.16   minikube   <none>           <none>
+
+2.4 Перевірка оновлених Endpoints (сервіс users зареєстрував усі 4 IP подів):
+$ kubectl get endpoints users -n devops-lab3
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME    ENDPOINTS                                                        AGE
+users   10.244.0.12:8001,10.244.0.14:8001,10.244.0.15:8001 + 1 more...   6m36s
+
+
+================================================================================
+=== ЕКСПЕРИМЕНТ 3: ОНОВЛЕННЯ БЕЗ ЗУПИНКИ (ROLLING UPDATE)
+================================================================================
+
+3.1 Оновлення версії образу deployment/users на devops-users:1.1.0:
+$ kubectl set image deployment/users users=devops-users:1.1.0 -n devops-lab3
+deployment.apps/users image updated
+
+3.2 Відстеження процесу Rolling Update (поступова заміна подів без простою):
+$ kubectl rollout status deployment/users -n devops-lab3
+Waiting for deployment "users" rollout to finish: 2 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 2 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 2 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 3 of 4 updated replicas are available...
+deployment "users" successfully rolled out
+
+3.3 Перевірка оновлених подів (всі мають новий ReplicaSet):
+$ kubectl get pods -n devops-lab3 -l app=users -o wide
+NAME                     READY   STATUS        RESTARTS        AGE     IP            NODE       NOMINATED NODE   READINESS GATES
+users-6779cb4499-9csp9   1/1     Running       0               21s     10.244.0.19   minikube   <none>           <none>
+users-6779cb4499-jm6w9   1/1     Running       0               37s     10.244.0.17   minikube   <none>           <none>
+users-6779cb4499-tlczt   1/1     Running       0               37s     10.244.0.18   minikube   <none>           <none>
+users-6779cb4499-xg8rb   1/1     Running       0               16s     10.244.0.20   minikube   <none>           <none>
+users-75dc7945f8-9jkpp   1/1     Terminating   0               87s     10.244.0.14   minikube   <none>           <none>
+users-75dc7945f8-hzpgw   1/1     Terminating   3 (6m46s ago)   7m13s   10.244.0.12   minikube   <none>           <none>
+users-75dc7945f8-wnvhx   1/1     Terminating   0               53s     10.244.0.16   minikube   <none>           <none>
+
+3.4 Тестування доступності та версії через API Gateway (NodePort 30080):
+$ curl -s http://192.168.49.2:30080/api/v1/users/health
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.1.0"}
+
+================================================================================
+=== ЕКСПЕРИМЕНТ 4: ВІДКАТ ДО ПОПЕРЕДНЬОЇ ВЕРСІЇ (ROLLBACK)
+================================================================================
+
+4.1 Перегляд історії ревізій deployment/users:
+$ kubectl rollout history deployment/users -n devops-lab3
+deployment.apps/users 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+
+
+4.2 Виконання відкату (Rollback) до попередньої стабільної ревізії:
+$ kubectl rollout undo deployment/users -n devops-lab3
+deployment.apps/users rolled back
+
+4.3 Очікування завершення процедури відкату:
+$ kubectl rollout status deployment/users -n devops-lab3
+Waiting for deployment "users" rollout to finish: 2 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 2 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 2 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 2 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 2 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 2 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+deployment "users" successfully rolled out
+
+4.4 Перевірка статусу подів після відкату:
+$ kubectl get pods -n devops-lab3 -l app=users -o wide
+NAME                     READY   STATUS        RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+users-6779cb4499-9csp9   1/1     Terminating   0          53s   10.244.0.19   minikube   <none>           <none>
+users-6779cb4499-jm6w9   1/1     Terminating   0          69s   10.244.0.17   minikube   <none>           <none>
+users-6779cb4499-tlczt   1/1     Terminating   0          69s   10.244.0.18   minikube   <none>           <none>
+users-75dc7945f8-4xbq8   1/1     Running       0          16s   10.244.0.23   minikube   <none>           <none>
+users-75dc7945f8-6sxfk   1/1     Running       0          16s   10.244.0.24   minikube   <none>           <none>
+users-75dc7945f8-bmc76   1/1     Running       0          32s   10.244.0.22   minikube   <none>           <none>
+users-75dc7945f8-dgsj9   1/1     Running       0          32s   10.244.0.21   minikube   <none>           <none>
+
+4.5 Тестування ендпоінту через API Gateway (перевірка повернення до версії 1.0.0):
+$ curl -s http://192.168.49.2:30080/api/v1/users/health
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+================================================================================
+=== ЕКСПЕРИМЕНТ 5: ДІАГНОСТИКА ТА TROUBLESHOOTING
+================================================================================
+
+5.1 Симуляція помилки: оновлення на неіснуючий тег образу devops-users:error-tag-999:
+$ kubectl set image deployment/users users=devops-users:error-tag-999 -n devops-lab3
+deployment.apps/users image updated
+
+5.2 Спостереження за станом подів (виявлення статусів ErrImagePull / ImagePullBackOff):
+$ kubectl get pods -n devops-lab3 -l app=users
+NAME                     READY   STATUS         RESTARTS   AGE
+users-6779cb4499-9csp9   1/1     Terminating    0          63s
+users-6779cb4499-jm6w9   1/1     Terminating    0          79s
+users-6779cb4499-tlczt   1/1     Terminating    0          79s
+users-75dc7945f8-4xbq8   1/1     Terminating    0          26s
+users-75dc7945f8-6sxfk   1/1     Running        0          26s
+users-75dc7945f8-bmc76   1/1     Running        0          42s
+users-75dc7945f8-dgsj9   1/1     Running        0          42s
+users-7dcc47699d-8zt8q   0/1     ErrImagePull   0          10s
+users-7dcc47699d-ntgnb   0/1     ErrImagePull   0          10s
+
+5.3 Детальна діагностика проблемного поду (users-7dcc47699d-8zt8q) за допомогою kubectl describe:
+$ kubectl describe pod users-7dcc47699d-8zt8q -n devops-lab3
+Name:             users-7dcc47699d-8zt8q
+Namespace:        devops-lab3
+Priority:         0
+Service Account:  default
+Node:             minikube/192.168.49.2
+Start Time:       Tue, 20 Oct 2026 21:04:01 +0300
+Labels:           app=users
+                  app.kubernetes.io/name=users
+                  app.kubernetes.io/part-of=devops-platform
+                  pod-template-hash=7dcc47699d
+Annotations:      <none>
+Status:           Pending
+IP:               10.244.0.26
+IPs:
+  IP:           10.244.0.26
+Controlled By:  ReplicaSet/users-7dcc47699d
+Containers:
+  users:
+    Container ID:   
+    Image:          devops-users:error-tag-999
+    Image ID:       
+    Port:           8001/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       ErrImagePull
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     250m
+      memory:  384Mi
+    Requests:
+      cpu:      50m
+      memory:   128Mi
+    Liveness:   http-get http://:8001/health delay=15s timeout=5s period=10s #success=1 #failure=3
+    Readiness:  http-get http://:8001/health delay=10s timeout=5s period=5s #success=1 #failure=3
+    Environment Variables from:
+      users-config  ConfigMap  Optional: false
+      users-secret  Secret     Optional: false
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-2dgnh (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-2dgnh:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age   From               Message
+  ----     ------     ----  ----               -------
+  Normal   Scheduled  10s   default-scheduler  Successfully assigned devops-lab3/users-7dcc47699d-8zt8q to minikube
+  Normal   Pulling    9s    kubelet            Pulling image "devops-users:error-tag-999"
+  Warning  Failed     7s    kubelet            Failed to pull image "devops-users:error-tag-999": failed to pull and unpack image "docker.io/library/devops-users:error-tag-999": failed to resolve reference "docker.io/library/devops-users:error-tag-999": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+  Warning  Failed     7s    kubelet            Error: ErrImagePull
+  Normal   BackOff    7s    kubelet            Back-off pulling image "devops-users:error-tag-999"
+  Warning  Failed     7s    kubelet            Error: ImagePullBackOff
+
+5.4 Перегляд логів контейнера працюючого поду (users-6779cb4499-9csp9):
+$ kubectl logs -n devops-lab3 users-6779cb4499-9csp9 --tail=20
+INFO:     Started server process [13]
+INFO:     Waiting for application startup.
+[32m2026-10-20 18:03:23.449[0m | [1mINFO    [0m | [36msrc.main[0m:[36mlifespan[0m:[36m20[0m | [1mStarting Users Service in 'k8s' environment...[0m [35m{}[0m
+[32m2026-10-20 18:03:23.642[0m | [1mINFO    [0m | [36msrc.main[0m:[36mlifespan[0m:[36m25[0m | [1mUsers Service: Database connection successfully established.[0m [35m{}[0m
+[32m2026-10-20 18:03:23.642[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1mApplication startup complete.[0m [35m{}[0m
+[32m2026-10-20 18:03:23.642[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1mApplication startup complete.[0m [35m{}[0m
+[32m2026-10-20 18:03:23.643[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1mUvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)[0m [35m{}[0m
+[32m2026-10-20 18:03:23.643[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1mUvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)[0m [35m{}[0m
+[32m2026-10-20 18:03:24.425[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:42536 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:03:28.755[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:42550 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:03:29.425[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:42552 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:03:34.424[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:48810 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:03:38.755[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:48826 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:03:39.424[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:48842 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:03:44.423[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:59926 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:03:49.424[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:59942 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:03:54.424[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:38392 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:03:59.424[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:38394 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:04:04.425[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:46090 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+[32m2026-10-20 18:04:09.425[0m | [1mINFO    [0m | [36mlogging[0m:[36mcallHandlers[0m:[36m1762[0m | [1m10.244.0.1:46098 - "GET /health HTTP/1.1" 200[0m [35m{}[0m
+
+5.5 Інтерактивний доступ до контейнера через kubectl exec:
+$ kubectl exec -n devops-lab3 users-6779cb4499-9csp9 -- sh -c "echo 'Interactive terminal check: logged into container as user $(whoami)'"
+Interactive terminal check: logged into container as user endi
+
+5.6 Виправлення аварійної ситуації: відкат на стабільну ревізію (rollout undo):
+$ kubectl rollout undo deployment/users -n devops-lab3
+deployment.apps/users rolled back
+
+5.7 Очікування завершення стабілізації:
+$ kubectl rollout status deployment/users -n devops-lab3
+Waiting for deployment "users" rollout to finish: 3 of 4 updated replicas are available...
+Waiting for deployment "users" rollout to finish: 3 of 4 updated replicas are available...
+Waiting for deployment "users" rollout to finish: 3 of 4 updated replicas are available...
+Waiting for deployment "users" rollout to finish: 3 of 4 updated replicas are available...
+Waiting for deployment "users" rollout to finish: 3 of 4 updated replicas are available...
+deployment "users" successfully rolled out
+
+5.8 Фінальна перевірка відновлення працездатності та здорового стану всіх подів:
+$ kubectl get pods -n devops-lab3 -l app=users -o wide
+NAME                     READY   STATUS        RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+users-6779cb4499-tlczt   1/1     Terminating   0          96s   10.244.0.18   minikube   <none>           <none>
+users-75dc7945f8-4xbq8   1/1     Terminating   0          43s   10.244.0.23   minikube   <none>           <none>
+users-75dc7945f8-6sxfk   1/1     Running       0          43s   10.244.0.24   minikube   <none>           <none>
+users-75dc7945f8-bmc76   1/1     Running       0          59s   10.244.0.22   minikube   <none>           <none>
+users-75dc7945f8-dgsj9   1/1     Running       0          59s   10.244.0.21   minikube   <none>           <none>
+users-75dc7945f8-mj29d   1/1     Running       0          16s   10.244.0.27   minikube   <none>           <none>
+
+$ curl -s http://192.168.49.2:30080/api/v1/users/health
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+=== ВСІ ЕКСПЕРИМЕНТИ УСПІШНО ЗАВЕРШЕНО ===
+
+5.9 Стан подів після повного завершення завершення термінації (всі 4 репліки 1/1 Running):
+$ kubectl get pods -n devops-lab3 -l app=users -o wide
+NAME                     READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+users-75dc7945f8-6sxfk   1/1     Running   0          59s   10.244.0.24   minikube   <none>           <none>
+users-75dc7945f8-bmc76   1/1     Running   0          75s   10.244.0.22   minikube   <none>           <none>
+users-75dc7945f8-dgsj9   1/1     Running   0          75s   10.244.0.21   minikube   <none>           <none>
+users-75dc7945f8-mj29d   1/1     Running   0          32s   10.244.0.27   minikube   <none>           <none>

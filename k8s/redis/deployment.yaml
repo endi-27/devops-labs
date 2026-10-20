@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: devops-lab3
+  labels:
+    app: redis
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: devops-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/part-of: devops-platform
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - redis-server
+            - --requirepass
+            - devops_redis_password
+            - --maxmemory
+            - 128mb
+            - --maxmemory-policy
+            - volatile-lru
+            - --save
+            - "60"
+            - "1"
+          ports:
+            - containerPort: 6379
+              name: redis
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - devops_redis_password
+                - ping
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - devops_redis_password
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi

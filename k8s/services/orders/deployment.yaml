@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+  namespace: devops-lab3
+  labels:
+    app: orders
+    app.kubernetes.io/name: orders
+    app.kubernetes.io/part-of: devops-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders
+  template:
+    metadata:
+      labels:
+        app: orders
+        app.kubernetes.io/name: orders
+        app.kubernetes.io/part-of: devops-platform
+    spec:
+      containers:
+        - name: orders
+          image: devops-orders:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8003
+              name: http
+          envFrom:
+            - configMapRef:
+                name: orders-config
+            - secretRef:
+                name: orders-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 384Mi

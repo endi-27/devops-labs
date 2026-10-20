@@ -59,4 +59,6 @@ backups/*
 !logs/.gitkeep
 !storage/.gitkeep
 !backups/.gitkeep
-labs/
+labs/*
+!labs/reports/
+!labs/reports/*

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users
+  namespace: devops-lab3
+  labels:
+    app: users
+    app.kubernetes.io/name: users
+    app.kubernetes.io/part-of: devops-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: users
+  template:
+    metadata:
+      labels:
+        app: users
+        app.kubernetes.io/name: users
+        app.kubernetes.io/part-of: devops-platform
+    spec:
+      containers:
+        - name: users
+          image: devops-users:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8001
+              name: http
+          envFrom:
+            - configMapRef:
+                name: users-config
+            - secretRef:
+                name: users-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 384Mi

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: products
+  namespace: devops-lab3
+  labels:
+    app: products
+    app.kubernetes.io/name: products
+    app.kubernetes.io/part-of: devops-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: products
+  ports:
+    - name: http
+      port: 8002
+      targetPort: 8002

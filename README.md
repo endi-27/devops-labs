@@ -141,3 +141,119 @@ docker compose down
 - Users Service: `http://localhost:8001/docs`
 - Products Service: `http://localhost:8002/docs`
 - Orders Service: `http://localhost:8003/docs`
+
+---
+
+## ☸️ Розгортання в Kubernetes (Lab 3)
+
+Проєкт адаптовано для декларативного розгортання в Kubernetes-кластері (наприклад, [Minikube](https://minikube.sigs.k8s.io/)) з використанням маніфестів у каталозі `k8s/`.
+
+### 1. Передумови (Prerequisites)
+- **Docker** 24+
+- **Minikube** v1.30+
+- **kubectl** v1.28+
+
+Запуск кластера Minikube та активація необхідних доповнень (Ingress, Metrics Server):
+```bash
+# Запуск кластера з драйвером docker
+minikube start --driver=docker
+
+# Активація доповнень
+minikube addons enable ingress
+minikube addons enable metrics-server
+```
+
+### 2. Розгортання однією командою (Single-command deployment)
+
+Усі маніфести організовані в каталозі `k8s/`. Для розгортання всієї інфраструктури (Namespace, Stateful-сховища, Microservices, API Gateway, Ingress) виконайте:
+
+```bash
+# Створення ізольованого namespace та рекурсивне застосування всіх маніфестів:
+kubectl apply -f k8s/00-namespace.yaml && kubectl apply -R -f k8s/
+```
+
+Перевірка статусу розгорнутих компонентів:
+```bash
+kubectl get all,pvc,ingress -n devops-lab3
+```
+
+### 3. Таблиця параметрів конфігурації (ConfigMap та Secret)
+
+| Сервіс / Ресурс | Тип об'єкта | Назва в K8s | Параметр (Ключ) | Опис та призначення |
+| :--- | :--- | :--- | :--- | :--- |
+| **Users Service** | `ConfigMap` | `users-config` | `APP_CONFIG__ENVIRONMENT` | Середовище виконання (`k8s`) |
+| | | | `APP_CONFIG__LOG__LEVEL` | Рівень деталізації логів (`INFO`) |
+| | | | `APP_CONFIG__DB__HOST` | DNS-хост сервісу PostgreSQL (`postgres`) |
+| | | | `APP_CONFIG__DB__PORT` | Порт PostgreSQL (`5432`) |
+| | | | `APP_CONFIG__DB__NAME` | Назва бази даних мікросервісу (`users_db`) |
+| | | | `APP_CONFIG__DB__USER` | Користувач БД (`devops_user`) |
+| | | | `APP_CONFIG__REDIS__HOST` | DNS-хост кешу Redis (`redis`) |
+| | | | `APP_CONFIG__REDIS__PORT` | Порт Redis (`6379`) |
+| | | | `HTTP_PORT` | Порт запуску застосунку (`8001`) |
+| | `Secret` | `users-secret` | `APP_CONFIG__DB__PASSWORD` | Пароль доступу до бази даних |
+| | | | `APP_CONFIG__REDIS__PASSWORD` | Пароль доступу до Redis |
+| | | | `APP_CONFIG__AUTH__ACCESS_SECRET_KEY` | Секретний ключ для підпису JWT токенів |
+| **Products Service** | `ConfigMap` | `products-config` | `APP_CONFIG__ENVIRONMENT` | Середовище виконання (`k8s`) |
+| | | | `APP_CONFIG__LOG__LEVEL` | Рівень логів (`INFO`) |
+| | | | `APP_CONFIG__DB__HOST` / `PORT` | Адресація бази даних (`postgres:5432`) |
+| | | | `APP_CONFIG__DB__NAME` | Назва бази даних (`products_db`) |
+| | | | `APP_CONFIG__DB__USER` | Користувач БД (`devops_user`) |
+| | | | `APP_CONFIG__REDIS__HOST` / `PORT` | Адресація кешу (`redis:6379`) |
+| | | | `HTTP_PORT` | Порт запуску застосунку (`8002`) |
+| | `Secret` | `products-secret` | `APP_CONFIG__DB__PASSWORD` | Пароль доступу до бази даних |
+| | | | `APP_CONFIG__REDIS__PASSWORD` | Пароль доступу до Redis |
+| **Orders Service** | `ConfigMap` | `orders-config` | `APP_CONFIG__ENVIRONMENT` | Середовище виконання (`k8s`) |
+| | | | `APP_CONFIG__LOG__LEVEL` | Рівень логів (`INFO`) |
+| | | | `APP_CONFIG__DB__HOST` / `PORT` | Адресація бази даних (`postgres:5432`) |
+| | | | `APP_CONFIG__DB__NAME` | Назва бази даних (`orders_db`) |
+| | | | `APP_CONFIG__DB__USER` | Користувач БД (`devops_user`) |
+| | | | `APP_CONFIG__SERVICES__USERS_URL` | Внутрішній URL сервісу користувачів (`http://users:8001`) |
+| | | | `APP_CONFIG__SERVICES__PRODUCTS_URL` | Внутрішній URL сервісу товарів (`http://products:8002`) |
+| | | | `HTTP_PORT` | Порт запуску застосунку (`8003`) |
+| | `Secret` | `orders-secret` | `APP_CONFIG__DB__PASSWORD` | Пароль доступу до бази даних |
+| **PostgreSQL** | `ConfigMap` | `postgres-initdb` | `init-multiple-dbs.sh` | Shell-скрипт ініціалізації автономних БД (`users_db`, `products_db`, `orders_db`) |
+| | `Secret` | `postgres-secret` | `POSTGRES_USER` | Адміністратор PostgreSQL (`devops_user`) |
+| | | | `POSTGRES_PASSWORD` | Пароль доступу до PostgreSQL |
+| | | | `POSTGRES_DB` | Базова системна БД (`devops_db`) |
+| | | | `POSTGRES_MULTIPLE_DATABASES` | Список баз даних для ініціалізації |
+| | | | `POSTGRES_INITDB_ARGS` | Кодування та локаль (`--encoding=UTF-8 ...`) |
+| **API Gateway** | `ConfigMap` | `gateway-config` | `nginx.conf` | Конфігурація Nginx, правила upstream та маршрутизація запитів |
+
+### 4. Інструкція з доступу до застосунку (Access instructions)
+
+Отримати IP-адресу кластера Minikube:
+```bash
+minikube ip
+# За замовчуванням: 192.168.49.2
+```
+
+#### Спосіб 1: Через NodePort (Порт 30080)
+Доступний безпосередньо з хостової машини за адресою:
+- **API Gateway Health:** `http://<minikube-ip>:30080/health`
+- **Users Service API:** `http://<minikube-ip>:30080/api/v1/users/health`
+- **Products Service API:** `http://<minikube-ip>:30080/api/v1/products/health`
+- **Orders Service API:** `http://<minikube-ip>:30080/api/v1/orders/health`
+
+#### Спосіб 2: Через Kubernetes Ingress (`devops.local`)
+1. Додайте запис до файлу `/etc/hosts`:
+```bash
+echo "$(minikube ip) devops.local" | sudo tee -a /etc/hosts
+```
+2. Виконуйте запити на домен `http://devops.local`:
+```bash
+curl http://devops.local/health
+curl http://devops.local/api/v1/users/health
+curl http://devops.local/api/v1/products/health
+curl http://devops.local/api/v1/orders/health
+```
+
+### 5. Очищення ресурсів (Cleanup)
+
+Для повного видалення всіх створених ресурсів та простору імен виконайте:
+```bash
+kubectl delete -f k8s/00-namespace.yaml
+```
+Або покрокове видалення об'єктів:
+```bash
+kubectl delete -R -f k8s/
+```

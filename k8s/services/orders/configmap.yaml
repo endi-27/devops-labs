@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders-config
+  namespace: devops-lab3
+  labels:
+    app: orders
+    app.kubernetes.io/name: orders
+    app.kubernetes.io/part-of: devops-platform
+data:
+  APP_CONFIG__ENVIRONMENT: "k8s"
+  APP_CONFIG__LOG__LEVEL: "INFO"
+  APP_CONFIG__DB__HOST: "postgres"
+  APP_CONFIG__DB__PORT: "5432"
+  APP_CONFIG__DB__NAME: "orders_db"
+  APP_CONFIG__DB__USER: "devops_user"
+  APP_CONFIG__SERVICES__USERS_URL: "http://users:8001"
+  APP_CONFIG__SERVICES__PRODUCTS_URL: "http://products:8002"
+  HTTP_PORT: "8003"

@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: devops-ingress
+  namespace: devops-lab3
+  labels:
+    app: gateway
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: devops-platform
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: devops.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 8000
