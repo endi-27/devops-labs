@@ -1,0 +1,46 @@
+# Development values for devops-platform.
+users:
+  replicas: 1
+  image:
+    tag: "dev"
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  config:
+    APP_CONFIG__LOG__LEVEL: "DEBUG"
+
+products:
+  replicas: 1
+  image:
+    tag: "dev"
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  config:
+    APP_CONFIG__LOG__LEVEL: "DEBUG"
+
+orders:
+  replicas: 1
+  image:
+    tag: "dev"
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  config:
+    APP_CONFIG__LOG__LEVEL: "DEBUG"
+
+ingress:
+  enabled: false
+  host: "dev.devops.local"

@@ -1,0 +1,46 @@
+# Production values for devops-platform.
+users:
+  replicas: 3
+  image:
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  config:
+    APP_CONFIG__LOG__LEVEL: "INFO"
+
+products:
+  replicas: 2
+  image:
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  config:
+    APP_CONFIG__LOG__LEVEL: "INFO"
+
+orders:
+  replicas: 2
+  image:
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  config:
+    APP_CONFIG__LOG__LEVEL: "INFO"
+
+ingress:
+  enabled: true
+  host: "devops.local"

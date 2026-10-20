@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: products-config
+  labels:
+    {{- include "devops-platform.labels" . | nindent 4 }}
+    app: products
+    app.kubernetes.io/name: products
+data:
+  {{- range $key, $value := .Values.products.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

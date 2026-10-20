@@ -1,0 +1,16 @@
+# Patterns to ignore when packaging a chart.
+*.tgz
+.git/
+.gitignore
+.gitmodules
+.*.sw?
+*.bak
+*.tmp
+*.orig
+*~
+.DS_Store
+.project
+.idea/
+*.sublime-project
+*.sublime-workspace
+.vscode/

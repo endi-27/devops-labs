@@ -1,0 +1,319 @@
+================================================================================
+DevOps Lab 4: Helm Release Deployment, Verification & Inspection Report
+Generated at: вівторок, 20 жовтня 2026 19:32:00 +0000
+Cluster: Minikube (192.168.49.2)
+Namespace: devops-lab4
+Release: devops-release
+Chart: helm/devops-platform
+================================================================================
+
+================================================================================
+[Task 1] Helm Chart Installation
+================================================================================
+$ helm install devops-release helm/devops-platform -n devops-lab4 --create-namespace
+NAME: devops-release
+LAST DEPLOYED: Tue Oct 20 22:30:00 2026
+NAMESPACE: devops-lab4
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Get the application URL by running these commands:
+  Ingress is enabled!
+  Add the following entry to your /etc/hosts:
+    echo "$(minikube ip 2>/dev/null || echo '127.0.0.1') devops.local" | sudo tee -a /etc/hosts
+
+  Then access the DevOps Platform at:
+    http://devops.local/
+
+  Endpoints available:
+    - Root:     http://devops.local/
+    - Health:   http://devops.local/health
+    - Users:    http://devops.local/api/v1/users
+    - Products: http://devops.local/api/v1/products
+    - Orders:   http://devops.local/api/v1/orders
+  NodePort access:
+    export NODE_PORT=30080
+    export NODE_IP=$(minikube ip 2>/dev/null || kubectl get nodes --namespace devops-lab4 -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "Gateway URL: http://$NODE_IP:$NODE_PORT"
+
+  Port-forwarding access:
+    kubectl port-forward --namespace devops-lab4 svc/gateway 8000:8000
+    echo "Gateway URL: http://localhost:8000"
+
+================================================================================
+[Task 2] Deployment Rollout Verification
+================================================================================
+
+$ kubectl rollout status deployment/postgres -n devops-lab4 --timeout=120s
+deployment "postgres" successfully rolled out
+
+$ kubectl rollout status deployment/redis -n devops-lab4 --timeout=120s
+deployment "redis" successfully rolled out
+
+$ kubectl rollout status deployment/users -n devops-lab4 --timeout=120s
+deployment "users" successfully rolled out
+
+$ kubectl rollout status deployment/products -n devops-lab4 --timeout=120s
+deployment "products" successfully rolled out
+
+$ kubectl rollout status deployment/orders -n devops-lab4 --timeout=120s
+deployment "orders" successfully rolled out
+
+$ kubectl rollout status deployment/gateway -n devops-lab4 --timeout=120s
+deployment "gateway" successfully rolled out
+
+================================================================================
+[Task 3] Inspect All Kubernetes Resources in Namespace
+================================================================================
+$ kubectl get all,pvc,ingress -n devops-lab4 -o wide
+NAME                                             READY   STATUS      RESTARTS       AGE    IP            NODE       NOMINATED NODE   READINESS GATES
+pod/devops-release-devops-platform-test-health   0/1     Completed   0              48s    10.244.0.37   minikube   <none>           <none>
+pod/gateway-5b75945bdb-w2sfw                     1/1     Running     0              119s   10.244.0.34   minikube   <none>           <none>
+pod/orders-c865f779b-72kvv                       1/1     Running     2 (110s ago)   119s   10.244.0.29   minikube   <none>           <none>
+pod/postgres-5679f78c8b-24h2s                    1/1     Running     0              119s   10.244.0.28   minikube   <none>           <none>
+pod/products-58856d84b7-2r7bx                    1/1     Running     2 (110s ago)   119s   10.244.0.31   minikube   <none>           <none>
+pod/redis-867465fb89-2qp8h                       1/1     Running     0              119s   10.244.0.32   minikube   <none>           <none>
+pod/users-84bb97856c-njdhp                       1/1     Running     2 (110s ago)   119s   10.244.0.30   minikube   <none>           <none>
+pod/users-84bb97856c-wpb68                       1/1     Running     2 (110s ago)   119s   10.244.0.33   minikube   <none>           <none>
+
+NAME               TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE    SELECTOR
+service/gateway    NodePort    10.110.53.11     <none>        8000:30080/TCP   119s   app=gateway
+service/orders     ClusterIP   10.103.79.95     <none>        8003/TCP         119s   app=orders
+service/postgres   ClusterIP   10.107.245.193   <none>        5432/TCP         119s   app=postgres
+service/products   ClusterIP   10.103.108.105   <none>        8002/TCP         119s   app=products
+service/redis      ClusterIP   10.99.172.8      <none>        6379/TCP         119s   app=redis
+service/users      ClusterIP   10.96.251.18     <none>        8001/TCP         119s   app=users
+
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS   IMAGES                  SELECTOR
+deployment.apps/gateway    1/1     1            1           119s   gateway      devops-gateway:1.0.0    app=gateway
+deployment.apps/orders     1/1     1            1           119s   orders       devops-orders:1.0.0     app=orders
+deployment.apps/postgres   1/1     1            1           119s   postgres     postgres:16-alpine      app=postgres
+deployment.apps/products   1/1     1            1           119s   products     devops-products:1.0.0   app=products
+deployment.apps/redis      1/1     1            1           119s   redis        redis:7-alpine          app=redis
+deployment.apps/users      2/2     2            2           119s   users        devops-users:1.0.0      app=users
+
+NAME                                  DESIRED   CURRENT   READY   AGE    CONTAINERS   IMAGES                  SELECTOR
+replicaset.apps/gateway-5b75945bdb    1         1         1       119s   gateway      devops-gateway:1.0.0    app=gateway,pod-template-hash=5b75945bdb
+replicaset.apps/orders-c865f779b      1         1         1       119s   orders       devops-orders:1.0.0     app=orders,pod-template-hash=c865f779b
+replicaset.apps/postgres-5679f78c8b   1         1         1       119s   postgres     postgres:16-alpine      app=postgres,pod-template-hash=5679f78c8b
+replicaset.apps/products-58856d84b7   1         1         1       119s   products     devops-products:1.0.0   app=products,pod-template-hash=58856d84b7
+replicaset.apps/redis-867465fb89      1         1         1       119s   redis        redis:7-alpine          app=redis,pod-template-hash=867465fb89
+replicaset.apps/users-84bb97856c      2         2         2       119s   users        devops-users:1.0.0      app=users,pod-template-hash=84bb97856c
+
+NAME                                  STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE    VOLUMEMODE
+persistentvolumeclaim/postgres-data   Bound    pvc-ac8f6124-98d9-4bb7-afc0-e5a1bda1b5e0   1Gi        RWO            standard       <unset>                 119s   Filesystem
+
+NAME                                       CLASS   HOSTS          ADDRESS        PORTS   AGE
+ingress.networking.k8s.io/devops-ingress   nginx   devops.local   192.168.49.2   80      119s
+
+================================================================================
+[Task 4] Run Helm Release Tests (Elective Task 9.b verification)
+================================================================================
+$ helm test devops-release -n devops-lab4 --logs
+NAME: devops-release
+LAST DEPLOYED: Tue Oct 20 22:31:04 2026
+NAMESPACE: devops-lab4
+STATUS: deployed
+REVISION: 2
+TEST SUITE:     devops-release-devops-platform-test-health
+Last Started:   Tue Oct 20 22:32:00 2026
+Last Completed: Tue Oct 20 22:32:02 2026
+Phase:          Succeeded
+NOTES:
+1. Get the application URL by running these commands:
+  Ingress is enabled!
+  Add the following entry to your /etc/hosts:
+    echo "$(minikube ip 2>/dev/null || echo '127.0.0.1') devops.local" | sudo tee -a /etc/hosts
+
+  Then access the DevOps Platform at:
+    http://devops.local/
+
+  Endpoints available:
+    - Root:     http://devops.local/
+    - Health:   http://devops.local/health
+    - Users:    http://devops.local/api/v1/users
+    - Products: http://devops.local/api/v1/products
+    - Orders:   http://devops.local/api/v1/orders
+  NodePort access:
+    export NODE_PORT=30080
+    export NODE_IP=$(minikube ip 2>/dev/null || kubectl get nodes --namespace devops-lab4 -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "Gateway URL: http://$NODE_IP:$NODE_PORT"
+
+  Port-forwarding access:
+    kubectl port-forward --namespace devops-lab4 svc/gateway 8000:8000
+    echo "Gateway URL: http://localhost:8000"
+
+POD LOGS: devops-release-devops-platform-test-health
+=== Running Helm Test Health Check ===
+1. Checking Gateway health (http://gateway:8000/health)...
+{"gateway":"nginx","status":"ok"}
+2. Checking Users service health (http://users:8001/health)...
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.0.0"}
+3. Checking Products service health (http://products:8002/health)...
+{"service":"products-service","status":"ok","environment":"k8s","version":"1.0.0"}
+4. Checking Orders service health (http://orders:8003/health)...
+{"service":"orders-service","status":"ok","environment":"k8s","version":"1.0.0"}
+=== All services passed health checks successfully! ===
+
+
+================================================================================
+[Task 5] Inspect Helm Release Management & Secrets (Task 8 requirement)
+================================================================================
+$ helm list -n devops-lab4
+NAME          	NAMESPACE  	REVISION	UPDATED                                 	STATUS  	CHART                	APP VERSION
+devops-release	devops-lab4	2       	2026-10-20 22:31:04.036684763 +0300 EEST	deployed	devops-platform-0.1.0	1.0.0      
+
+$ helm status devops-release -n devops-lab4
+NAME: devops-release
+LAST DEPLOYED: Tue Oct 20 22:31:04 2026
+NAMESPACE: devops-lab4
+STATUS: deployed
+REVISION: 2
+TEST SUITE:     devops-release-devops-platform-test-health
+Last Started:   Tue Oct 20 22:32:00 2026
+Last Completed: Tue Oct 20 22:32:02 2026
+Phase:          Succeeded
+NOTES:
+1. Get the application URL by running these commands:
+  Ingress is enabled!
+  Add the following entry to your /etc/hosts:
+    echo "$(minikube ip 2>/dev/null || echo '127.0.0.1') devops.local" | sudo tee -a /etc/hosts
+
+  Then access the DevOps Platform at:
+    http://devops.local/
+
+  Endpoints available:
+    - Root:     http://devops.local/
+    - Health:   http://devops.local/health
+    - Users:    http://devops.local/api/v1/users
+    - Products: http://devops.local/api/v1/products
+    - Orders:   http://devops.local/api/v1/orders
+  NodePort access:
+    export NODE_PORT=30080
+    export NODE_IP=$(minikube ip 2>/dev/null || kubectl get nodes --namespace devops-lab4 -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "Gateway URL: http://$NODE_IP:$NODE_PORT"
+
+  Port-forwarding access:
+    kubectl port-forward --namespace devops-lab4 svc/gateway 8000:8000
+    echo "Gateway URL: http://localhost:8000"
+
+$ helm get values devops-release -n devops-lab4
+USER-SUPPLIED VALUES:
+null
+
+$ kubectl get secrets -n devops-lab4 -l owner=helm -o wide
+NAME                                   TYPE                 DATA   AGE
+sh.helm.release.v1.devops-release.v1   helm.sh/release.v1   1      2m2s
+sh.helm.release.v1.devops-release.v2   helm.sh/release.v1   1      58s
+
+# Demonstration of how Helm stores release state in Kubernetes secrets (type helm.sh/release.v1):
+$ kubectl get secret sh.helm.release.v1.devops-release.v2 -n devops-lab4 -o yaml
+apiVersion: v1
+data:
+  release: SDRzSUFBQUFBQUFDLyt5OStYTHFPdll3K2lyKytKMnUwMTIva0hnQUV0TzEvd0FDeG9RaEdMREJuVk1wVHhnSFQ0M05ZRTd2cXZzUTl3bnZrOXlTUE9DSklXUHY3aStwU2dLMnRDU3RTV3N0TFVsL0ZrekJVQXJWZ3F4c0xOc3ByaFJkRVJ5bGNGWFF6TGxWcVA1Wm1Hc3J4MzJXRlZ1M1BFVXVWQXM0aWxlS0dGckUwVEdPVndtMGlxTFhKWUtzWU9SZDVYOVJvb3FpaGF1Q0xweXNoRlhSMGpWS1ZDcDNwZHNLRWRXU0ZWMXhZWG40eFpGV211MXFsbG1vRmlhMnVoSmtCWkVzd3dhRkNsY0Z4eFhjdFFQN0hyUnpWVEF0VndHUHNHdUVVbHpFWFNpSVlOdTZKZ2tBRGpKaHVvam9JYXUxYVdxbUNsNDdFS1FobUxKVGZUSVJoRGJWbGVJNGlPWWdpaW1JdWlML0gvQzRKc3NRMk56U2RXc0w2aXFtdS9JUTEwSThhNzFDYmhSWHVsbFlqdXREUVJCRldsaklVK0czdnhxYXFTM1hvb0pvTm9JL3JWR1VVRzVrWlhOanJuVWQrZGUvL0lLL1kvanROWHFOWG1PLy93M3hTWEd0VzVLZ1B4V1FmeUhPV3JZUVYxR1FvaEJyNk1rRUxZMFhpb2tJa2dUNkREcDRyMndHdG9NODZvSTd0MVlHSXJoQmh4YXVhMWR2YnVMQWIzd1FUVk8yTGMxMEhVVFlDSm9PQmgzVUtTS01aYmxWNUhoOXYxUmJFWFIzVVQxU2FnSGZobVVuanJKeXFzY2dDcloyczhGdTFxQlFXT054WmNscnlYV3FwMnJZUWFHdzBtQWxCKzJjcUdUQlFxQkszNUtWUjJ2bEJxZ01pYml6d2JQKzRMNzUvRGhneGo4SUZMMURzKy9veHgvbkNRM2VTYTZPcUlxTG1KYXNPRWl4Q0lUUHNRVkpDWWhlMUFXeGhCUXQ1TVd4VEZ0d0Z6K2VDbjllYTY1aU9QOUEvN2oyT2Y1YWtHWEFvd3A4Rm56NStWVDRXNEx6S01GVnRvSUhXRDVDM0c5QmI2dS9SVU42S3ZoTUFBWmZuRnVycmJDU0FYc244QkIyM1k0Vk90cDdaeVBkcUVIamR5aUtWc0dmczEyRGRBRjg3UmN2UEptRm4xY0ZhU0dzWEtDRkRNVVZaTUVWd09la3hySURUaTljRlRiS3l2RzFCWHFOWGFNWkhaS1dqZi92Ly9sL0VVT1RWcGFqckRhYXBEaFhDR2hERkJ6bENwRUVhYUZjSWNGSXJoREJsQkhOVnc2RnE0SmdhMnpVMmdhSFQrekRFd3dJYytHcTRIbzI2R3BNQllGUjZaYTBMRlFCWDF3VlhNVUFJd0JLNngvUjBLS0hOLzNCdURtNmRuY3VHQXdjZjZFM0txa016cUowbTdINFVYMGh0ZXVPd1BVWE1xVnZSSzNPVHBaYmRXWXVWY2xrMTZLaHIzbXZqZ29VdStkSDlSY1J4OXdaVjE1S2UrdEJJUnlYcG5TRGJwUzVHYmZEK0dsdkxYQmxVekxZdmVTVmRkRm9hU0xGTHVrMlJqYTBtanFLM3RWdHlhc2YzZzh0bFc2Mmxud0R0RE5SZVlOMFJJb2tBQ3lhWXRkeXUxT20yOHlHYnVzYmVVcXJYWnhGWng1cGlVUWZCZjJnR3pXVnB0Z1hnYnBUYVcxb2laeStGamdYbXhrVFZaalcxTjVMYWNOVExON0Z5NWhJYmRWNWU2dnlYTjhTdlpyWkc5TkU5NlcyN2pWS3U0NjNWQlhDVWJzNnZ4RGJyQzU1WlZzMFpJK2Y5dmRkWTdHUmlLRTZuNklhM2Q2cUVzRXVSYStPOHR4RTdYTE5aSisyb0UvMWlVQ3hhNXBxdmN4d09HWTROb1ppOFRGUjM5T3R1ak9iTW9aSWRGeWFhcUVEMVZMQk9JUTJnMHIzMXFaTHVMZEg4QXJiQURqdCt1MjBSSVBaaXJpK2x0czlkVGJsRndLM1c4eU1uUjdDN0k3cUl4RW4wWUZXZTBzYklReWE1MXFPVEttVlY4UEFGL3FNMjZGQ0xZTEZTampyU2ZzM2pCbHZiWVVSaWZkR0pBWmhIUG8zbEF4eUtYT1FKOTRLY3h2Qk9NQjlsQXhHbDh4ZTVSMTkzUVF3QXBsaEhRbWZBRjRDOU91RVBFWlQrcDZtR0Z2Q2Zibm9xdmF0NHFFcXo1VjlHUXErQzl4TTVhZk5PSithc3ltankzaXIzRFg3dW1UeTlneWZyT1cydnVWSE5XMXNrRXVlclc4a2M2aUZzaGg3cHM2NC9ndG9QK1FYZnJyWWlrUUhwWnZsUjZiSnppZE5jc1RlWTdlS1YxdXpSc3VST1hiZk5lU0ZUTEhFYkxwY0F6cklodjdDajhwckVXZjBDVVY2Y3FOT3pvZjU4RVpzamV3MEZxN0FsVzJCWURWK1ZMZWxSczE3MU1nbFA1MXRSSk4xeEViOWJ0Nm9yMlN1bzg4SXhxRXBXWmNiZFFoZjhtcHVseXN2Ukk3ZFMxVHJoUi9WWWQ4bUJ1dndYR3ZQajhxREdZZnBFbEZmekh3OHExM3VUaFhNL2tZMDZ3dVpVa25hZE5iQ2xOSEZhVi9zdGRDMVJEQUx1UTNHMVZyeTdZNHVFWDFkd3B6dGRGUmU4QlFENlRNZjBYWUR5bEJkbitHTERkM290RU84MHkxMk5MNlA4WjNIRE1ZbzA1cWkrbkNnQloreCt1TkVIMm9OMDczdGpvRCtnL3JrQWNEMGNZWUJmVURNcHAybHIvc0MzUkhwT0tEVDJCZVoycXBTcWp6ZFFGM1JhTG44dEwrZGNYMmRia1ArSFBIY1RwOU4rM3AzbWNBWE9SL1Y5N0xSMi9CNEMrV244a0laMVVxOSs5cDJZQ2I1K3ZDK3ZPZW5IVnpnK25yWDlQbkc1OStZN2wxR1BLR3liS2MzME9xVzNHYTJBKzF1STFMa3k0emJRZGtZdktqYjNuMU5hNmcvZmhSK1h1Vk1XczhMUmJlVmxYUHQydnBoM2xJSVovT2cyaTJsWFY4QTNNblVRcWNwTUs2Skt1S3o0SHZmbWswN2FGZTEvdGtsTURMQTlaTG5lRnMwSmlwdE1McHNrRnZKdzdZaTFVSjVnL1RFVVhrTitJWFdhaTRZa3krampNNGJMVXhzRDlYdU1vQzU5TnVLeVIyc055WjRYVEk3Tms5TjFIbWpqb0o1YytiVjhKNVh2NlBiakNkdzJGam1lRU9ZcWlxdG9iNE1wbmtBZlBlc2h5SFIwUUZQMFZSVDVTbldtRTFaUjI3VURabmJPY3FvdnBPNWxpTnd2TTF6UTNVMnJXK0Q4YThidXF5RHRtU3UvT0xYYjZIMC9Xd2Y0R05QVXgxOWhyY3dvSGNrbkhUNVViMExaRXN5eXJwTXNmc1FqN3loNnlMRjdHbXE1ZkVqWUJkZ3Rnem5jREQvTXBZdzdha1BGSnlQZ2UzUUhPczlGZkFkNU5kMmY4dHpQYnVyMmgxZXEzc2g3NFd3WnppNWxxbVdMWm85ZFlZdkZvQ0hJTStPNnJiY3FCTUN0M05BUCtrMnUvZkgxMU5uSTMvczBUZzFhNU9ra2I0R09nN003eUpSMzNlbmgzbTFhL0NZU08xeWFKdTBXWGlnYnlCODlsRTJXRTh5OUNXVWthR3ZiMlAwaG4yQmZaNlFPRC90ZUFMSDZNQWVrTnNkVERSNmF2K2w1L09Bb2JzVGdqVjRReS9SRGRxbHRRTThudHZ0NC9BN0FYNEdMMmlNNXJYMTBNZlJlZ3h4Rk5lOXgvc0s1b1k0bmtQWVhiMmppeFM3a1BCSkFDOCt2c3k3dTVDWElBLzU0N05GdG8veEJtOHJqWnJXSGRIcUFaK0grUXgrYjljOWdTdWp2RmJUT3RPZTI1bjJ0S3d1bWtSOWU2dk1CRzJ2K1VZY3QvRzU4dTZmaldYZjQ3a1dDbXhYZ1dxQmVjbm5CNm9GNmdFYTdnV09CSGJhUHVJN2M1blFKVFFGN0NuV2VhVk9DZHFqMWU0MHFyT1ZESDB0VXpPVjF0aDlkOFR1YVMxTDUvQTdDK2lMUTV2OGpnWnpFdWdIUGxGcHpkSG9SbWRPYTYrbVU0QXJhTHNEWFhvUDdIa1JMNmtpMWRJQVg3NU92bnk4U0Y0d1JtT2hpeFM2bG5CMUU4aDNCYzVEbEw2ZTRUc002TWV6dUlya3BHNkxSdCtSZ1h3MU9rdCt5bStrZHM4Rk9KQXBmaU1ab0IwdzMvZFJrZWowWmx4SEY5dUF6MHBxU3M3dmZkamx1dFN1Y3hHOUFZOFlyYTNVS0svaWVyQnI2SnN1MU9kOVc4UkxsV0FlUFFKanEwcFRkaU5Ua3p4K1hFanQyaHJhTjlQT21wOHl2ai9oa2NCL1d2QTR1K3h5bmZKQXk5Z3U0M0NlUGQzSE9zQ3ZLK0t6Q3FCVEJxZkg1RUh2QTFsL2tTblNDL2xhMnI2S3IvZFFqZ2xtSXkzVDlEL1NWeHpLK2FXOEVPcnIwelRDZFdpemlVWmZ6OEVodFAveWRFYSt2Ukg0NkRlU1pjNDExUkRzYTA4d1lwYkhiRnEzSTJsOHNWVDVwZmtnNFBxYXY3ZlVJVTZ1ZVVNM3gxeHIyekF3WGFaYXk5bVVXVUJybWdwR1RrV1drVHNMeWdPckw1UzYwUElPdVBZY2hwd0V0emZxd1B0WThsd1pwZS9qVmxscks5MWJhbVRCQmRZNHNCcTZCclFrUGRGZ1VkOTd1ZHZBV1cwY0wyL0h4MkVLWExuVU5mb2IwWmhWNlBZMnRQeHcwSzdrMVc4YmdYY0pmbVdjOUFTYzlhWTRLRjhHM0dLTGVIbFAzemUzdlpkaFVMWk9OdUplYnlNSlErREtMMktiWGZLajZObUduekl2WFR6b0M0N1p3Q0tBWHM2MGw2Z2J6YUl0RWxXbWRaMXVwS01jNUdaR01McmN3UFp5dTZQUE9QUTI3SXMvcnQyR3gwaW81V2JUb1VwVDJFTGdTaXJka0phU3dib2l3ZWhUSEhnS3ROb2QxUTdQQ0hiUFQybVY4eGhVNERCOWl1ODJNN3psVEVjMXJRTTArSlRWSldLbzBRM3BJV3JyK0svWmFmZlIyWlRCSksrMm5CbmtVbUZKVFFHYUJDUDNrTjROZWdseDF5STludU4xeVdBOVdxdVpjVndjKysxNFVWM29TVS94bGdsaGdsbWJXcUJ5dXo1WFdtVGtZZkFjTXdmOFIydFNDbGVCbDRLUmpvaExLdDBnOGRtVUJoYS9lYUJWR0FVcCsyVjhmQ1pvSnVIc21xZDRXd1I4SDhFbTE0TnR2QzFYNTZmMWhVanBPTStTRU1jaXdhSjBvNGIzeDg1RGdnZW45WkMycWp3RlhuRi9mdkJVazd3R2Y5dlFjOWFsUUp2a2Vib0htTmkrYXdKYWQrQ3NHN1BhTkwrdFhtVndYOXYyL05rMzBSYVlmUS90MWpHcDNVY2xnMTJJMERvSW9nK0F2dEVzNEdSNHhSOEg2d1d6VTU2M2RvQTc3YTJsZG1mRHQ5a1h1UTJ0VTZEaEZ6SzNRK2xHWnh1TG1nQVAwSU9XNmpqZTVrRk9mVHl4VzRsZ2dGWGwwaFRwOFJUcmZYUi9SUUxNK0ZuY2hzOTlEN0lIcmNJRWY3VFJoeFJQQmUxbSt5UlMrbDZtMlBXSlBtVTkzamp1N3FFWG02RnZncGQwTXJBMmZUMGdVT1JldmsveXFmL2JVNW1vM2JvVlJOcUFsNlRQOEx5K2s4RExBeGFLK2ppcWJRU0tYWWh0eHNvYnB5ODNvVGZMelAyb1VFWWYvbFBDVTdJV3A1L0JvdkswczZidjZXMnZVVE1WcnhORm5PZ1hTeE1OMlJaTlZlczJPbnVaYXFIeXRLY050TTVHOERwa1o1L3RVMUlHZ2w4dmlBcDY5ZnFrdVR3NTVrd1UwTXVSWjU5M0FYK1hGSmJjem1DRURlaTFXcVhyQmZWaWZIdDA3TzNPUm1uclFIZWdVeGpKWklDT29HR1VyOEg0RVkzWDFaMTFXYUJEdHU2SXJhbGdYaEE1RXVWWkVrYWFYZzFyd204a1UxNUlCcVB6RFl3U0NWcnR0T3VlU0N6S2NJNXFrYVVwSGlzRGRUcDlEbDk3ZnNyTUFWOEIrYVpicXNzWXBDZmpMU0R2eXk0TDRETWJ1c0hzQVkrSzNDUkhCdEJjUHAvRWROR1FyWGN5Wlh4WlFhR0YzU0FYRXJYY3lDL05UVnlIS2Vkd1JMWDJrbmVJUGgzcXh1YUE4UkZaQ1hGSDlIVzVSUUpaWElJNWZRUmt0MUZiaGpMOG1ycGNBeHNCbWU1TzlDSGRBTG9UMjhnVU81OXh6Rko2ZVRVczZqQW5EeUZkNkFZVDBnM3dVTzY4L1U2K0drb0dpWXBlYlNuaGZZdm5zQng1U2MwVC91OEwzUXptaU5mSmRSZ3hmeld0d3prQzRDMkloTCtPMTV2K1NrK0hndjlmTFNjVE1JYzFzTTZrVVV2Yml1K1RPVUFQcmJZTXh3MTRaMG9zSUczRE1sRE8zOGxQUUQ1bDZrN3R0UHN2QXNXNmVYSnlSSC9EVlNib0FiZnJHNEVybzZkbCsrNG9iVFAyTy9CbHFKMGQxdTNpOWw3RVM4Znc2ZkhBWmpaS2F1K2x0cVViOGkxOVdCVUI4eExRS2U1aG5xY2Qyb3c4Zm0yZzBUdC9SUkE4RCsxdnVrS2JIVXcweXJab1NOcDhKT1hxdTRRc1JEN09zU2gzNkhYNjJTZUdZcnBuM0U3Z3Vra2VpZmVHOWdxNGZBT3QzdVNuZFVja2RCZVk3aGU0bnc5MG94NjZqNVdnaTBIZ01ISzN6Z2Q3dFBvZFRRRlVNTHBvRHRWK2JMRUg5SEdnMVNQeklHampXREFFbWtlSjhpWU1Jc08rU1FhN0ZTbjlaVGJ0VlU2WWFSN0FBVEJsSkEvMDZ4QzQ3NDJDZnJVUFFZL1ExUmE1RmpyREY3MGtMbzY0elcxR0YzMWM2SWY2TERyam1JVk1OZU4xMTZKQm9yNDZLMGR1dmY4T3FNMytTaUpZdHd2ZFl0N205eFpjY0k3aDNwTGFIUnZndE5Nb1QzZ3VjUHRINWNaczJ0Y25WQXNWR2pXdGkwZjAzSVRoQkpGcmJidW12aEM1cmZZd3F2bkJLWHl4NkwxTWNOQm11UEFYaUtGUHkzM0NGWGszSHd4aWZIQXFCQkc5T3hVc1N2QXNOS2tqdmdqd3VSRk5aaUZ3WmVodXhjV3hPNnBuK1NvaHJuVmI1Rm9tUDdaVSt2aUNsMS9HNTYrTmhPdW9TSFRLME9VNFh3ZWRjUkpNRnNodGw2MWpJclViaXZqT25oSExVN3dkd3R2SzNNNlpVQ1RnODNLQ2xzRVVJaElkTkVuUENCY3ZJZzc2bzYvNWFXY0l5ZzFPdUxpeHhWeC8wVGJwZ3NGRndtejd3VlFlaEpCZ1dLR1dWTzJ5UVRveWgrbGpqc1JFazBuS2h2L3JIdlJWRURiZ0FqbkpteVlvYkNOelpSVEt4TDBWSm1Dc2VWeGZLNDN3ZnhtTTNjanJxMFN3V2xnM2NGL1dVSlpTL1lLaEJzQmpSQitZUUJvL3p1SVlqcmNwNi9KOXpyVFlxRzluVThZNmlmTjJaek16d0xPZExSdnNHaWFjK0F2VktYZWRQcmg2V2tyV0R0UDhKZ3E4djgrdHpZNlRLOXN5cFMvRUpxT0xWS3M4d1ZtQTM2VVU2TEg4aElTNkorSWQ4TXdScHJ3dStra1N0bWpvcU1DMUhJWmluZGxVSC9PUTFremE1Y2R5ZWExZDF5VkQzL0N0dmc1cDFqNDVQMndoM2FhOTlZR1d2YlZFc1o3QWtjdG9ET201WTV5UEE1a0NjeTJKeWU5b093ZEdpZ2E5Yk5zdzdNVFlFSCtZajlPc0RQbG1NSU96YUk1OEFid3RZQUxQQmYyVkRHQ0c2dit0dk9nQjgxY0k2SEVVVm9vbitxTzhjZGEzL0xSaml6Z1Q4ZkJGc203RzZPbVZNekF1a3dQR0ZqbDJJMC9mMVhZVVJqMHFDMTUyM0pMQjdrV0M5V1k0bTZQTGZWdENwa2greG1IT2NidXR2NUdublJkKzJrc3RZelM5eEhqYi9FWnNzeTQvUFRyUEIvb2VnL3BlNEZMaGRTcVlSMUJzSWVYbzZNelN4K2dBNTdUcEh1Ujl2bUs1YUJMT3IwUGI1YWZNZ3FkYTZBek9LZmsyeXkrK1JMU1hLUFlGOXEzTmxDVnFjcUdzdzdMcFVQVGdrRHhHaDhseGg4WEdGK3Q0bjZHZU9kZ1VNYjZBK3ZEQVJ4K3ZqMlNxNWZFNGk4SiszNS9TUFlmRVBEOTVLeWxqY0xrZ1lUL1hEd2tkWEhsSk54YTZORHByc3dYTFhRbGMybWZIYXBRM1BNVU9mWHN2N2ljY25sOW9NK1ltQUlaak9TeEdIM09KRjVhMWRHN3NsVkpjKzlzMWlxSWdMZGZuMW1ObkJuRG0xRTFjMEVZR3FSMTFpQnVkaXpJTURwbEJrekN6d0pYYUhiMDdaYmM4MFZudzFNU2RHYTBYZ1dDM05JU2ZjcXphY1BYNWJEdWhrUHVyM2xzVlpsMVQ3RnB1MUNLQ3pManlXaVFZUDE1L2NIZzBnV0lkY1ZUZUN3M1NFbkZ5UmI5WWFxcVBBYk4yTEo3YnVWMnpiM1h4eFViRUhWZkdXWnZIRnlpb1E3ODB0V013dXh5WUdGbVVIMkhid0duUkJscE5teGtzY0FyMUx1ZkRtL25aYTdhSWx4eUJJamVDaCsxbHJ2L0NjK3lTNTRaYTNMbUhlTU5KZzEvdWJKSFQwWUZXMjRIbk1zVUd1Sm1FQVlxVW9rd3FiZWpBblZlSWg4eXRVWkJsTXNLMmtqRng1V25kbEl6V2toOWgyb3pycitScFRmdEtSMWtpNnZvc0JoOU1yRUNweUszNlJxVDBGMlZzcVdPRHhma3BIWldKTXJ3TW1FWDlrT3RFdGVzZVA4SXdpWks5R2Nmb1hhNnptT0V1SmpVd2ZNYnRiSUJQZ1NQWHh4emptY251RmE2elVlNnRYZmVsaDEva3lEWjFZMnlRNktUZDBTV2NYY3NwSjNDR2s2N0l0WUI4NWppcXRjM00wTmRkb205bEhUWlU3WEs5UE9mMkxzKzVDN0w3dGNjeFNuN1k3NGpPYys3Q1RHQngwdXEwdWl3N1pMQk9uV2xPMUZHVGZCeGhxRG81N0tKSThWczk1RGUxbzlVVE5LSHpqUGN3eS9ibEE4YzBUZ2Nva3ZqanNQcUlHV0hzcENtUGhoT21SVGNYajJQVWxlbG1INVBNRHVSbDZNeE0rK2lNdzdZRHJiWjhvSUNPbXFqZDZVUjk4Q1NkRzZHNk9FSjF2alhVUi9lV1BoNWIrZ1N6ekljMzRoUG9mWUhqeTM2R05HaXJwZmxacG9kY0U5blFVV1ZVTStnZ2hqMERPdGhrZEo3bzJISjd1ZTVxcGJlTnU5VzN4U2x3V0lIeExLbFFKM0dkaFo5VlcxNUk3YjRsRWtPMTY5WGhPbWlNeHU5b015bkhkTHUvNEEwV1ZXQkdJL3NpRUQwVnJvSGc3Skp1OTdFWjN0Y2xvaDlrREI5cGM3cXc1VVp0ZTN3aURqWXFwZWJkViszNE1WcGJnWTFsMGxGbFhXN0xHOGx3QWU3V3duNFJaTExOZGczNGJBajB4NW9uT3NBcGUwZ0hXQ1BqTTlTMTNLSHNMeC9VMWdMRHZTM2J3SkhPMzJHVURCNmZudmZURHRZeEl6OWxlTVhtMzRodWFOK1pUZnY3Y1lEZjR6dWdZdVZHU2VPVk52eUFYUlFJYUhjd2tXTGpCcm0vVHA0eElpTWFydUc2S2pDSzJ5MU1KQmc5YVlqNjYvYUozQTZnSzl0Smh4RE9mMGVDSERFK2hRRzVkRzVKMTZOekF3MnduVmErYzVPR3lmcTVGVW5jNkhXUDUzaGJhZVREOSswZ05uZE9oQTVRbUorZzVxK1ZaWjJ5SSt1bHZvTnlOTzlNTkZrWE9Id2ZFaHkrS092U3Rod1hhSmxEMm1WUk16VlhGajg2K3hLNGZRUURLUVcwaGpCbGxyTlB0dFlEN1pCbyswS3RzUVdTQXFWaUc4L0FCUDBldW1EMmtTbDlLMUlUbDZjNmUyRE5EN1RJQ25xaFI2UW1jS1dOaEt2aHNva3VOMm91SDFxYk9JdlNEUXdMVitvRGkxMmY0b2VaOUtHeFRLN01CdGxMOGRuMmNUVGNKVEl1ZzFuTTM4L21oM2FGcVExblNaSFRYeVFqbGlFV2d6UFFhbVluOXIzamxkWmRMVzRaMUxjUzBYTG9Cb2JUVFhJd1JkblJaRW1PcGxoL01zWnFaRzlVYzd0VG1Jbm5aMW8xNk9Xa1NZN1pwanhpMlA2Y1pmdXRpVWFyM1JHMm5CbitmZ05hWTI3alpaZ21YZWxPRDNTYWoyajE4WDdyTWhOeVBKbHNNeEl6UWRrZU0rbFA2SVo4UDFteWRiWTVVWmxtYXpLY2RPb1RkS0lteHBQTmtwaU9tdXlJR2RVSFkyeW9NdXlpTThHWU1kMVlqSm5KcmpVRXovVE80M2hVMy9JWUNlay9NMXA3ZmhUVkE4LzhzZDZqYXNkalltVWtlMHJKdWtLeEw1bFpIMW9WNVFuZGJQWEdqZnB3c3RTNTBXVFhZbEIyRFBCS041azYyMncxaG15L1JUZmlNT3VUc1ZmTDRqVE1NbWl5anhPczFjdGs5SEl6bGZOcXJxalZ0RTdiSFk2eC9vVEJPcTBKUnZiWnlXNHlZdXM5aGlXYlE1YXBENWV0TWNQMkt0MHBxdEV0OUJidUxlSktEemxXWVYvbWRxZ3dyVHU4andlL2o5T2VHdk04Z1FlMUE1cExwdGdsc0VqamZSK3piSTl0NnNOeGs1MGZhTWFPRXhZM2tIT3R2cHhwZFZ1RUZtMjR0NWk1WkJ5YXZ3K0RWanZlMXFRYmt0cnhscmMweFd5eTJSREIzaFEyVHVlYTFxRVlMZGtmWmlNYWt6eDgxRVZxZTFLK0pCamxpT1JSNXh0MTN5T2Y5dmN3dXRGZVJ0NEdieXpQYWVyUFQxVkk2Y3V2Q0g5S3dQS2dnSlhUZTdob2FUcmV4d3ZURldKdHJHUGxVdUhGWmhUMmxOc2RNT3VhU2hqeENNT3JyWTRlNm16WVpyUUhobzZpSmJNcDh5STBzNUdMd0lxTnpTKy9ZR29ERVp1clExZzR0cEFhR09Sam5xTFhDdGR5UlJqV2hMVGRDMVRUNjQvNXZjeWhLUXNyOUpENm1EZ2k5enpYOS9ocGRrL1NRN0Jmalc0TTErd2grclFlQW5say9hVXZXaU1QZVBNaVdCZjNKYzNISDJSdmxOTExRcmswdmpUbEltdXJITUw3QVQ1anFRU3BaUjgwc2tRejhoUzFyN3N6VGdaenZwYnlNbUs0dlR6dElpNVRBb2N0ZUh5eWxxbVdDY3FtSXlqK2UzWVlUNlBJV0xwbWpQY012NjlkTXhIaHlscndnQTVMM2hOeHRKSVh0Wkp3OWtVeVdIUmlzTVk1Q3o0MkhqZXM5NkZwSHZIeG5WbU82SStIKzk2eFpWM3FHTDlFL2NSRmZJZUpITnNYQ1hZdFo3MjBZL3ppd29qSzhJSjBENEpmU0JxZ0k3MDUxTy92eElZL2w1NXF6MS91WmJUdXRQOGlHZm8ySGFYTVR5OWhOalBjMVNVTjAwV1Q4WlNwbitFWStSTmFlWm5Dd1NIZDRmaHlQYlRWY3ZtQzZtOUVEbHVJeHJCeVpEZVBTemRTdG43anNxaHB4SnVVUEJlbTBBWlpLcU9heTQ1Tzh3dVlkK1JHT1c0RHNST1VIYVU5NlREU0V1eUdncnMwNkFhMlBEa25CdnplMWV1UEU0eHBUNWJzZUlveWphT3djVWJMVHp1b0gwMHRPUzBQNzBwVDJmY2FiMHdOT04rSGM2a0J1eU50WjVmMXM2a1JjYjM3eGxTVnlWdFRWYjU1Lzlmai9UZWx4UnhMbGNxa1dGM0lmNm5VbzNTcTEzbit1ekJOSzBHRE42Ykc1S1VFdlRVMUp1VWpSREJTTnQ4dU9TOUhjKzBsOWxqdS9Kb1gxVS8waFlKK0hkd3RCK3dGbml2RDg2WDRITDBUTHl1M2dyU2RTZCtaY2JxYmc0c1hrV3JaNGlRdlRnZjlqNVJlQ2FLSzdiNmVrd0lML0JoVW1UQzI5QUw0RE0ydmF3elQvQkpMT3czbmNtdy9JenEyMUI2K0tZMG9qdS9RMXNqNi90R092TDZJTThBbTN2YjNFK3o0aWt6a2c5c2I2WUpsbWNzSmFDOGtTbzhPTlJobzlialRQb1RQcDMwVU9NOXNrTU03eEhjTGdVT1BMdEhrTXR3UkJ6S1dhbkRJQnp1a0dWVDhMYisxcjFyaXlUaE81M0toNHM3T1lTbS92Z2lXNFNCeFV3Rm1WTVJnbnY1UlJSakQrUXMvS2lkaGVVZkdBSmZjU1V3eStySDJ3aTNuOFh6citsNm1TTTkzeEU1T0NuRHBUaUlZWFRUNmV0ZnMyNG9CYzdaMk1rZWk4UU5renVmMVJNenJLTkpLY1YrWEwrYzdRcGNFOTZmQlJGMzdqd2p1dzF5dGdWWi9sS2pXVHVZbUR4TEJlQUpYTnBsRFRpREVyMlMwMWp3K1VUdVVxeXVqcmRwcDh3dXhVYXM4anM0WkxDRnZnSW1QV2ZGVDZNQUdFeUdEejdodGlwNVdSbEdlcGVjbkpFQW1oZkRYSitUWkpNaVV0WmRNMWt0WmVVTjhod0doazViNjhMQ2VtdDNBbEIvTk81b0ltUk1SOHFNSkh4c2xxS096YWNma3Awd1FnYWhoL2Z1ZWQxd3hyQlJaKzVLd2NrZm5LZjNyUXNvR3V4UXVEaWNIZmJzMGxPekQvbmVIa1QyZVkrelhoWkMvZHRkWmdnYU5pNFQ2TUthY3hMekxrdTRPZkhiSmJyT1FsbUg0RXRLVTZOdEEwQldna2NkMlNqaDkrSWZ3SkxQZ3ZUbzVUeWRUQmFIV1NadDF4RmdpWWNyOThzZnJYYnpMTERyK04zZjNWakQyN2pRNC9DS3ZUQU4xL2VVNTNlT245WVdmdkpNSlplYVAyUVRsKzRSSWRKYnBvN2R5a2duZExvY3RGQXJUUlk3MGNwSWkzR055SlhLdGtzaXhyaDkyVGlybjNwZ3VpUnl0dmJyOWcwVjcrWGlOV0gwMm9HRTZ1Y1RrTnlKTUd0enBYVzdueVNNNk82UG4wUUJ2NFh6dU94cnZOZWk4OFdpOU5JK2xKcHVrUE1SMlorcjVXZmVSSGp1ZFZJTDM5bEw1M0k3RHJLeERmUlB0cHB0QTkzNlNEU2RSYkNteHEvVENaTlVvak9TMzY4N3duWDA4VklVdGpyNDdoaE9xdFpjSWVTTVp3M1AwREhsb0N5ekg3UGlnUzJ2UHVGMlQ1M1lMaFQwUkRnbmJ6dHVOYUJ5Rms1NTczcnhqNzJUN1o4TkF6ZTJiZDBnZDlFdGUrUFd0SWFBb2hQWE5lMi9ndldRWTd0TjNpNTVwLy9OMjUyVjVMeEdDZld2NFBSTUpTSWY3MnN5R2cwdlhlWDJKMVU5RkczcGorb1JYNkJ2em4rSVNIaXl6TDNFSDQxYmNwVmJqQlc1Z2RzYjdDQmN3Wm9rZmRmOFNsdTF4MXkva2dETnUzMHVQR0l4T3VuMXcxajd1OW9YM1pRUVhxSHppd1p2aDRVUHhuYUZmRWttTWp2eS83TFNMb0oveGxFK2ZzNzBaVnpiNVVXMHA0R3k1MjZndFpVZ3QvN2pvbUMwZnRyY09Ud1FKdVJyWS9IN2tDUGdUdmc4QUkwaHRWcy9hc1pmdTFFdFQ4QXNPc1FsUjlFVktJTjdlQllIZzhOeXBTOTM0c0R4VXQvN1pSbEhPL3h2YzhSaTcxZEVvdXlwMCs2a1VUZ04zV0RUS0d6blljNVJ5eStPWlU2SG92RFZ6S3NwTWxMem9YSyszSFZ3RFRhT0ZQc1BkdmN5aG0zRGwxRmRrY2Zvdi9KTzJHN1ZsVnorRUo3ckx6a0xDMlNITS8yL1FtMGdSVDN2UnVXRmRJbHJ0TGNNVk9tM3BpM3U3YjgzR05OWTNBVTRTeXMvSkhDTDBJV0VsTlozTmxzdVhyMU12N3dodDVMVWJaVmFGZTJyait3WkMxWHQ1UmxkRWc0OEpiMFFxTVFxdnhNdm5tZTFnc2p1U3JSVEgwWkhOM2xGN1daZjI5UWZtOEZ3Wlo4ek9SaHdmemZZeUJFN3V6NmIxRWMvTmptUktSQVpBMkxmRStkUHZ5VmFMYUJWZmRQbVNnM01pdmpweXNFc0xGVklHQzYyUjRabXEyakZhU0I5QjAxZTRQQWY5LzY3TW85M2JEeVU1aDhmUE95RG56TmcvMGVXRzUxcTMrV2wrWnBFVVpQc2Q1WUVqN21IdWZyTHcxcXNqKzc2T0d1RUh1aHkvY2VkdEIrR2NHOGZGUFBmbWJMY2NudnVxYko4Y252djN1ZG9IUEp3L0JPZGlFL3pqMTlZUDNsT1k4UDZyZTAvdlcxTUhIdEc5UmVhenphVnI2anZNdjBBbnVZMDFkUUhMeFNUOWhGaEszRlg0bFdsNU5wNFNwMDN5MHJ2VTlML3NPL0swai9MVFRtZHl3ZGxDa1N1blpVekNtRGtNdHlRL2ZJajUwR1lXa2lIcmNpdC9wU1J2bk5MaGpKMXp2QlRlYlB0NVVaWTJVS2tNTmlPWWZlTE14cTlKM1lqYXZqUjE0M0RKNDV1akxRY1lYamwwajJNUkZMOCtkSEg4S1RDQzg3WjhteXd0djJJblhnS3hYNUkyY1Rqai9kS2RlSWMrWHBvK2NXZ2ptVUp4VkNsZ0M1bnFXK1BNRHE1OEJyejAvS0lqNXpsbFloeWh2L1lSTVk3WTJIKzUrRXU4YjFGRy9DOTZvSEdHVHh1dlZUenZTVEZKSzd3TDBreGlQSDk1cWtsTXFYOU1QQ2F1TkwvbVlPUDRHUElueitPNzIxSVQvQ1c3L1dheHlmS2lIWDhIdW54WVhDWU84OGd1d2t0MnByM3BJTm1FYnYyQ1E0MFQ3WDF3Zk9ic1dMNGlKZUk4UGo4eExTSXVPLzhSY1pxNGZ2bVNnNHkvblArK09sNlR6d09KdU1tNU9PR1IrT1JGdXhQUDB6UEx4K2RUTStyeG1FdVd2MDVzMG9qMTV5UGlOcEV4L3htN0lnNkUrL3BkRWUveHlENDhncE1TVW9pM0wxb2JqeEg0TTdaSkpNekpYNSt5NS9Oajh0WHBoMnlUU09EcW5lZEZYNnoyejhSMXpzSTV6MkZyNTFQVFo5citIWmRmSDlUeDI3MlF5Znk3L040ZXpBbnVFUHpTUUk1UHVDK0k0aHd3K1JVUm5PRDIwd3VqTjBIZkxvemNCTEEvS0dwendNdXZITEVKeHZ6TFJXdkNmdjNxa1pvRVB6WmVvMDNlRTZHSmE2L3owWm1RcnkrUHpBUmErV09pTXFIMis2S0lUTkQzWHpBYUU5RGh3eUl4SWJ5dmpzSkVldklMSWpCUld4L3MvWjRjd3hkRVhzN2c4Qk9qTHFGOC9FZEVYRUxkOFNYUmxpL2p0UytQc21Sby9sVVJsalAwKzlMb1N0aVhqNGlzK05iMUo0UlZBa3A5ZVVqbFRmN1FoNGRTWWhMNGxXR1VrSnFmRUVNNUdIdS9MaG5QeGsxeUZPTkh4RXdPdUhsbnZPUWl4WDBtVm5JU3hsRVdjaFhIOWY4V0Y0cWd1NHZYY0E5RkxqL2pBaW5nQnNzTkxFcEkvbHpYL05nbWo4eGxVTnBBcTZQOHRJOSs0Q1ZRV3NxMVAzR3hVZjdSc2pGT2czM3Jja0ZTYlpSc0hydXdpR0E5TVhCNUpJOThrYWNkWi9DaXJ2dWowb0ZEajdoRUk0NGZpQVF6QkgzazR4ZVhIem1LOE5obFJkMVJ6WjF0azhld3pWT0o4Y0VSL0hyNitETC9TRythZkJ3bkxnMmlBWjNvRnFOTHhGQWRoYVpUMHo5eW1iN1B1WmdvdWlpb3VRN0x3Y3R5bXRGRkRtcGtnalVXMGNYNTBRVVNhWGZ6RFJkQUhKS2Y4eTdicVVQYTBBM01rTENlMmgxaDdteXF1akFCZHdUTnFNL3RVMmFqUlhCMWdXb2R3U09keEdQTDErSkFjd1l1YkM0K0E0MVZPV0p5WFhEVElEekhKVEtYSDBicHF4RWdmMktTc1ZXN0hMK2ZlTUdaRXcwTW1uN1FEUWt1VHVsNnBOL3UzcjdVSGMvZVRnZ205MUcwa1NJZlZ4cjljSVN2OTEydGZnODNsZUdRcjRlSHhiUjY3T2o2a0c5cUZ0d2NjbTl0dXNSaDFXRmd2aWFDbnVFRDd5TjVNOVoyNWNUQzVRVjBwaE4wUG9JL3JhSG04MjIvVVZLSGZwZ1BYcmN4RHJKRnovRm5tRlY2ZEJQV0pUemhKWGpDN21xbHpPVmxVQzgzYWk1djlzZDBBM1ZGcmxYcWd2bUJtOEJOSkJHZDhTRHpOODJqcHpaRVpIRFpleGN1SDhjb1NUZGJqaGk3ZUVmeTZ0dlp0TC9udWVFQmorR1I5MTdtT29YRkVaMWNFcVpEdFZlemZoUisvbkZWMkFqNlduRUsxVDhMODdXdUE3dGxzRkZXSzAwRzlrdmhxaEJjTUFzS2FJYWdLdUNEdmRiMVIwdlhKSzlRTGREenZ1VStyaFJITWQzQ1ZXR2wySmFqdWRZS3ZKT1ZqV1U3eFJER1ZjRVYxRUsxZ0YyajEyamg1MVhCWGxtaTM3aXViUlJUY2VCbnpkUmNUZER2RlYzd1JvcGttYkpUcUphdkNyYmdMZ3JWd28xdlFCV3VDcmF5MGl3NUtvS2hWd1ZYTXhScjdVYlBpSitnUzRLc3ZSZDRPUTgyQkc3cm1pU0E1c0VYeDFxdnBIQklodWJDVDVLOUxsUUxlQmsxQ2xjRlF6Rjg1R0Q0WFU4clFCRC9YQVB6OEZBMFZiSlNBZ1YvWGhVQ3p3TVVOQzFaZWJSV2JxRktvT2dkZWxXdzRaYzdGQVZZOEd4QXZuNVk1dWRWWVcwNzdrb1JETmlLbjlSZnFBWWZRQzJpQU1rQlY0a0wxZWdqZUlVWHJnclE4eWxVL2YvZ0lRWTdGTnpPQm1BS3BtbTVncXRaSnZqNjg2b2c2WUxqOUgxRDJGUTFjMWU0S2lpbUlPcUtYS2k2cTdWeVZWaFlqaHV4eWJWdVNRSXdpVU5TQkIvSC9tQWVWOHBjMjRHaFpKazBITStmQlg4QkVueXFQVDQrTndiOUZrMDlQOS9YbjUvYmc5RVlEQ3c0TUxCd2xTblJyL1dhRVU2ZVpUR255T09BQVVES0pRTFBlVHNaTlpsb09NOEFWYWxDelQ1TE00TityOWtIVUpaMzZWNTBCK0JQazIxMmdXRDFXNFBVKzFHVFllbEdjL1Q4L01nTTdpZU44ZWg1d29DeUM5ZTFxemMzYWFybDF3WGRURldNa2ZXcTBCNlBIOE9SUXM0QWhINnI3QWVrZVkvb1kyK1UvZkpGc2c5cXZrSDR5KzhUZnVLdWRLSHdCMm9DU3IrMFV0dzgzbjZzalViY2dMay9NSjlmOXRrV0hHZHJyZVJDVW5sRXVvS0lkRVZEWHp1dXNxSWZZVk9SbEx4SjdjZGtMS0I2cFNqb3RtWXFrUExLeXRFY1Z6SDl2Z2lTcERoT3o1SkJhLzhvTUlvZ2N5dk5WUWJnL1I4WmxlRm9lOUJkak5KZXlVVUUrdEZNODlrOFVzYndkL0RJNDJBMHBwam02UG0rZm1BTHFOU2lOM1NmSHQvWG4yc01OU3BVQzhXaVlrcVdySm5xajhtNFZieERpa1ZkS2txV3JndXU4cU1SZkFYczhxTVJoOUtiZE1mMFk3ZjVmRjhiMStxMVVYTVV6aFBQc25nVnFpVHdPYTVabytybmVUZFdPRWZENW5FMjBNL0hPRHVhNHo1a3NvZ043OWViTHBqbVBUMktCZ01QUmNvdkVmU3pRdHlTV2YyUHYwdi9SL2orbmdIK3ZUTkFQdUV6MVNDWG5KMDNqa21YejJOdm1qUkM5dlM1NURZMllSakNMbzRMQTBoYTlDeUN2YkYwd2RWMHBhaXYxdEJ5REVad2JHU3ZaOENQNHJmeUYzQVhSdUx2Y0M1OE9nTjFjSVRPZ1R2d0lTbzBuQ3IrVy9VbjlpNzk2V1A2djExNTR2ODI1Vm1iak52UHo3VkdvemthUFkrYURhWTVmbjVvemdyVmdyTzJsVlhScjFWODJicEZSMU5OelZTTFM4VXJHcHFwR1d1alNPQkZhU0dzQk1sVlZrNHhuUE4wd1oxYkt5T1BvNzlXVDJPNThnc0tTd3ZGRUFwVmM2M3JWNFc1cGtQck8xcTR1bDRvdXFHcHByVlNEbXRVdEZjZnpxWU15azg3YThtcm82Slh0M204dkpHTWlTcmpDMTNVNnRzWjExL05PQm5HLzJid1l2aVdKemRLRHc5YUdlVUo2NkZyeUxiY3VQUC9VN29wR3FUSEQ2MDFqK3VveUpGTG1kdnAwdFphUDJqbHZieS9BL1cwR2VmQSt1SzBCdjV2SkpnU1pmOXZReXMzSnhnNWxpa2ZodFR1YkFTRGZaRnIxbHJnR0gwMmd2WDNNdGR4QkE3VHU5TzZKK0syUGlPR3FlZndNdmk5UkxWZUFCelo3TCtJT0tOM3Q4a2Q3WDZvREJBNXRYaEhlL1VtUCtWMWtTSzNJc2V1NVVZZEQ0S1lLbStRSGszbExacVZIc0xBZkNiZjlMNzVFRnRRQ2c5TVgvQjd5MStBZzhIM3ZQd0c4S3lGOGROK0lpOXVSdFN4Z1ZieitsenNIc2pnWU9tQlZzUDdUU3c0dUxVT0VHSW5UcDZpK2x0NWJLbTljVzBySGs0YWMza08yMGptRXZUVkd3VDFvM3pUSUtnNVpPdkRLZHAvSEMvNURvT1I4M0dUYkU4eHNzZXdmR3Q4YjZuMGtta05kYlpOcTlaRFBJajlqUS9ySVFxS3E4R1ZLc0hKZkFPdHR2TnZ6ZmRQT3d2NmljNDRxZUl2L3M2MGNKRXpmZmRUZEI5eDNuaGVXUGZ3TERqc2UyeXAvUmVtTHdUakZDbmRGYWFKSzF4ZXBQWUVqSG5ibzNKeHVldTlMUHo2VkhRZmEzQmZjMnM0YVpIM1k3Uk1qU2J5ZklydUhuMmNzQnd6MllLeE5KbEpoMlU4K3FGeHVKMGY5anU2TnVqZVVubWo1VWo0Qk5BL3VObmZ6OW50Umd2VlpVZkUrd3V4UVQva0NETndUN0xTSEMwSkNSeTVwdHZoY2tyZEVBbGF6YzBJVnUxZ1djc0tPQkZ3VG44aDdTMjFCNU02Z2h0SEE4ekpWTXNFUGUyTlN0dnVTKzF0RkR2S2dUVFdYNTduNFA3UitwTmRiL2xXRHRZSHpQSk9hNmoyWWVrcER5ZnEvNVU0Q1E5aHlkRnc5SEVOOTlKYzl4cWxMYTIrNm5LbGM1THA5Y2Y4QlpJOU9WWWY2NDA3YjVYc3puakpQd0l0SjNCbGVMOUx3Q082YUxRMEVkNldYa2NsazRXcENRSkY3dVY3SzVaNkVwZm9QNkNEYUdwekJTNGxGSXZGSi9OL2tCRTBKYXRJeWlDN09YMFIxSk1wMkJxcnJCek5NcXZJQm5zeWw1b3BWNUVSTFBKa0dvb3JBQ1ZSZlRJUkJPaVJLaEtDQ2V4RThFSVhSRVYzWUJrRUFYYlV0Yk80QVVhaW0rbFBFYjNHcmxHL3BHRGIxOHUxcUt4TXhWV2NhODI2OFZ0SVZUbFdXRE1kVnpCalkxNHB1aUk0eXJIeW0zQ1lUNzVUOFZRNFZ0SVFURUZWNUtMb1ZaRzJvaC90Z1MyczNLSTFQOTdqQTdaT2ovaFFDdGl1VldSZ0MvOWNLMCttNDY0MFU3MFBDUkFMY0lKUlJCRk9meVI1UVU1UTdEVlJ6aFNrYktBVEFEd2Q2VXlCQ08zNFdJZFQ5bitxQXZCeFk0VkJZNkRFeFd4KzRtaTJOM0M3RCtTYjF5L2hkUjlYcDhjYmxqbko1OGRjeU5NODlIb095ZHNFL2hhTkdJRDU1cEtMTkdLQXJUTWFNU3IxQ1p5U3JKY0tPTVNxSmlNT2IrT3hURHI4R3hnTXd2am1ya3U0QzZMcTlIQ0RJaGZ6MVpGNEdSalgrd05tV1hiOHBkZzR5R05LN1hJL3hzSU5XS29uMkxsY0hNQXErckMrK2Zna0h3ZklPajNncU5BQjA2cG03cTRCaHF2SXYvekt5a1l4WFFmNTAvOEdmcmJXYXFtc25pWExOQlVKcGk4aEdJcVgvdTZYK1Bsa0JnUnhYVHRlVFRNbGZTMHJ3YmNieFpWdVlITTNobVlvMTBDY25MOGZTc3ZLWEZqcjdqTjREa2VnYXhMTWxicXhKRmR4aTM1dTF0L0R4c0NQYnFuUEFBMkNpeUNHb0prSTh2dHZLOFd3WE9WWmtPVVZVa1RDcjBDRWtYLzg1bXFHOGd4enFQNUFuZ3EvQlpIeHB3THkrd0ZvOXVmMzN4eFhjTmNPOHB0b3lkNno2TGtLRUMvVEJUREFvSjlYeWx4WkFiUHpES0N3UE9qT3M2QXFKbWc3ZkxnRFk5a0tLMW1Sd2Flbnd1K0p3ZnBKSU0rNnBTTEl6VVpZM2VpV0d1RFRmM1VOWHdFOHhMRHFLS1k4MS9TUUNJZ1ZmN2xVRkZ2UXRZM3lIS3c5SUVpbG5HZzBUSW56ZGVCek1FbkZpZXczc3Rvb0srU1FJUlZyNDJjdXVNZ1JPQTB4a2F4MUZtamdVWndHR1V2bk93WXdLSm1xcjhPRUhPUU9SZEcvNTBGK0JpS0dRT1phV0k2YlFDUDQrUitFOHFVUDhkZUFFR21oU010VUc1YlA4c2dQSkZncFN2Y2lJeWx4UVhseEV1UU5mMWFLdTE2WkNJNml5TzkvUG9YcHFrK0Y2cE9mZFBoVXVIb3ErQ3dPSDFyTHA4TFAzMU9BZm1iSE13SDBSbXFQOUpGQjNBaTJkclBCZklzbWJ5RDJ5dHA1Y0o1QjRrbDJJUVgvZnF5R283alBDMFdRbFJYU3Rod1grUzFBK05uUzB5S2pDSHFSZmtUaWV1S3ltcTFRT01FbjVEZS9oQ0RMYWJsOUxiVEhsZVZheUc5d3RVazVqL1RIUUNRdXdIc29QWmVoUGkyUzM5alB3ZjRBYW84TGNPK3JtY3N3bjlSYjMzalB3VHRqV1M2aW1MSnRhYVo3RFBXZm9Dc0Rta0MxS05oYU1kS2RWMCtGd015RDd3STdMNmxIVjJzVDJQYjV5alQxOGVjcmJPd29MaHNaMlVYTjFGeFpmSWV0SFFWcGZVamZ4dmFIQm1ralpBUHNGbzIxN21xMnJoUmwwYmwyRnBIaC9ULy81MGJVekJ0bjRYOTFGQmNwS3JIUDYxQXVwSlVpdU1vemdDb0tqdkxYdjhVNUgxb2dTUGp1eDIvWTRaVWlMU3prcVlBZ3RKK21vdTAxVTBVTVRWcFpvZEVVMXFzaXYvOFdmdjc5K3ZvNlJDc1ViT2VmT2xMY0lJUCtjNU5oQnN6emFEeDQvSUVoUlppSkE4MmdwOEp2aWZqc1V3RXBGbVV4ZlBkblBEQmREUEgwRXhqRGF4UWxKUDl2c1RrWURidEp5UmsxdTgzR0dQbTl3VFJyNHlZU2hwbVJRMmVUNWJsMmsya2kvY0VZYVU3cDBYaUUvRFdBMEdJR1BjUldJeVFHSldYQmhaMzhFUi8vMzU2ZVZHV25TRW5RRkZQcmo1RmF0NHM4TWpSTGQ1dFVjNFFNK2psOVFzWURKSW1QUUIvRUJoZ3BQVzJPL0FNcG1razA1Y1RWaXdCZGYvd2RjUmVLbVNGeEwyQ3hpSjZPenpSQVR3WmVqeUpYWTUzS05oQ24rTnhhSWJLSWFDYnkyMStERms1WFJmNkZ1Q3ZrOTZ2ZmtkK1IzLy8yZDBTMmtyaExjVENBRnk0RUJIcmJNcFhNcUdxNm5zK3REcUtGSEszSWlMT0cvdEI4cmV0ZXhMaHo3UjFMQWg4UnpRZ1dCcjZER1IrOE1DQWZDKzIyQjZNeDZIYWtobk1qWi8xYXJ3bEtwWmFqOHRJc1FiRnlpY0R6U3h4Wmhrb1dqS1ZiZ3JMTHU1eGVIVkl1UVJHNjN4cGt5K1R2Y2dMbDg3WTVuYW9mN1hTS1ZUNDQ4bjdOS0ZzVGxBR2U4enRYVHo1Q25LSTFsRytCK29RMWxBOFNxdGg2NzMrRVdNV3ltVUVoR0FjL0hqZ1ArbDRoYnNsOE9jSGZzd0wwRVVMaXJ3TjlTOGlIcmdOOWtHeUVTUkgvTndvRzlpckJpUHhkZXlPZEZJYkhjTnVreTFyNjJsQWF1cUFacDkxZDhCdzhqbTNOVG9sSG1IUmZ0T0dXaENxTW1uOEwwNGY2eDQ2dFNCQ1JzWjJ1QVdLTFNHSzdLM2dZYllNSWlvUWJIS3FodytDNDFrcFFGVGhtU252VCttWDhBTFBqQy9CK2NPakUydVUzbjN6Z29tWEVKZjVLZkhoMEEzamlLTG9pdWRhcW1nL2N0bGJ1Z2FGOHNNRFdEUmtHdksvQ3BaM3dpU3VzVk1WOXpEd1B6NVNvSXZCTWliZG9zZmV5Vmx5NHZubnI0M1dRejEzUlpxQmo3QldIbjhkZnlmWkRIb1B6ZVE2UCtjOHZaaVk0QWIrYmsveHAvSnVOVHJGUmhLUGp3dzJLdkphQklzaDUzQk5yTm1RZGFFN2xzSTcvL0IzcHJ1OWpva09zNXB1TFBpU2c5Vm8rT3NDK2VKb2pqa3h6eER1VFl0ODVzY1dDRk4rODlHR3huRmRQYkRINEYzTVVmb1NqOFBla3dMNlBuU0tQL3B1WFBpRHE4Vm91aWlCZnpFTFlFUmJDM3VDK3BlN3FTYktQWU52T3pZR0g3cU95MzU3Y1YzdHk0ZkVHVlFUTFlTUkRjS1ZGTjQ3MGJHc2g3Y01xY1FMQzhwbkFEbHgvWENqUzBsa2JRWlMxaW1DbHVVd1FvaVRQc2JsQWlpSXV6RWxKbE9lbE9Zbkt0NEo0aDVNS0tnbXloRWtTVmhGeHJDTGNvV1dsUEZmdTVNcmRuUmlDMXBPOWZRMmJ2SnBWM3NJdXIyT1oxN0ROVzFnbm4zMHVZaUVZNXduWkNKTFVNbDFCTTVWVkhQdEZKS2Rha0oxc0JDR2k1QW1jMVF3Q2dxS1AwYWtrVlNSK0tFbThZRnpYSGJvUTlTd2JUZ2gvc21vUi9HeGdGTE5ucmMwY3FINFZtTUFaaS9ESGZ3eFE4VkZ3RjlWNDh2VWg0enRkM2xtTGZ1bjhJdUVwS284clMxUlMzUUU5cHhTM21nWnArNjM3dWF5WmwwZlFrWE9JU2hVcEo4c2tqaytwSWxnS1JQSXNsU3BDeEY5SEo3YjhpaU1wdjJvZ3lVRG9nVktHbHVFWUJKSHNkUlhCeTZpUllSUjRFa3dWZ1FmQkpGOW1ZcXNKWUNkZ1ZVb0hVRDRmNThubE1mYVZ3bVd0Vkx2NUcwTmVINFA3UVB2Z094ejN1ZUc0dEluZ3JnUlhVYjBBeWI0MXlpaCtRdEZyYkloNGh6N0lpQkNVQ29hWEt0aGNJa3NZWHJxcjNKSVZTUkZSVk1CRmhjVEx4RndoNXFKRVZqQkJFRkZwZmtlVWxUbUJTc0tjSk11NEtPYUE5bmR4VlJFY3hYQkJ4T1k0UnFBRW9jd1Z0SHdyQ3VWS2FhNlE4emtta3lVTUZRVlJRRkhwVnNFRkVwc1RZa2tRTUJGWGNKbThFNzd0azNmWkorbGc3aVVjL0RvTEpkdEN6RVFKWDFhalUyTGZhS0FvNXFhMXNveU1NZUd6R2FQTXE5bVU2S09uT0x6SzZva0h2dk1odjlMeXlTemhIak45NEY0cFRZeVUvei8xbTJ5VkVLcWYvbHgwcEpWbXU2ZWd5cGEwVkZaRnhYUlhIc3hLRDNPdzVVdHRKbVVYNDQzRHhHY1lnaW5ua0tHSUpMS0RrNitLVXQ1VFczM1dIR0R0ZUVoeGdzUVNCWkNpakJ3T2d6aHZzaERvdTZ5djhzWFcxMzhRVGpEMFBYWmMrVFB0T0hncThnZlpjUW1iOExnaGQxUWE3YnljakZRdkpQQ3Nmd3JPV2ZFOGJURG03RzdJYkJIcFdiSlNSZERiY3ZuVjYzQWZhRTErTDhsOXlwTGNaeG1SVVZmT1daRGZkdGViN0s3RU11aFpjci9PNGtyQmpwbGI4RTMxOW4ybVZ2NnNWZlNiTGZwN2h0UHZpa1dncDdXVllndU9rMzU1NG5pR05KVG82T2NzREhnNjlNazZRYUpidG1yOCtPZzhDSTZ3VWJLMUttaTI3Rk1CU3o2OHlJU01MNEFuOVh1R2xCOXFkL2tVazNRdDE4b1E4cDVlU0t2QUpORk05UktEby95ckdtRy9DSUxLdjZ4QkJvOGEvOURBMnB2VFBUN1FWdm5PL1Bpc3pJODNMb3NkMnZxZ2dOYXRTQkE0aW1HRUtCTW9McU5sY1M0UnFEQXZ5ZVJjbmhPRWZFZklxRlRDTVV5K0s5MktjMXdzVjBqeVZpcUpKQzdnQ240aW9JWE95Nmdzb1dXNU5KZXdrbnhiSWdVSnE5eFZKRktjazNLRm5DdXlJSWdFY1N2aVFtVk8zSW1FUU1xM3NpQ2lra3pPSmV6YnNIcVhZUlZueTB0WTgzV21WUnA2ZHJVdE9JYmxLeGJiaU1zVzI0NkZ4aUxQOGxSMExMTzU4M1hCdGN5aGtaKy81a2I4U2hiSEZ3emwxNDNXd0lzYVBqWmE4NDRrdm85Y0dmdk81L3ZVZkw0M1dnbng5ajRxZTBiQzVMSWdDYVdLSklxaU1LOVU1THZiU3JsRWtHV2lUSWp5clNSZ0JDWkp0eVVNVlNTWkVCUk1Gb2p5clZRcGw1VjUrWlNkVUJGdXBVcEp2cDBMZDlJdGVudDdTK0l5UVFpM2tpaVNkNFFpazdoUXhuRkpRcFZTU2FySXdwMVNLWkVZTmhlazIxc2N4NGx2TytGOUMxOEo1cnlNUVYrNThKVnBJV3N0Ukx2WnY4SmV3TC9BWHNqWnZmN0s1YmpzRWNLZmJ6UGcvejAyQS81dE03emJadkRUdEQvUVlQak8yUDZVak8yRG5ZQy94azZJV3ZvZ0k2R0N5Z0pPb0JnMkYyV2lqS0szb2lpU1dPWDJUcGdyZUlWUUNBeVRpYnZLWE1MdjVpaWhWRzRsRkpNd2dieWRTM2NZanBPbmpBUUNGN0JicFZUR3BIS2xNcitUU3RJZFZsSUVDUmZ1c0lwY3VVUGxXeFFuN3dqaGpwVEtKUnhUU3VLdGpBc2lLWW1pUUg0YkNlOHpFbUk4ZVFGZnZzNDhTTUhPMmdiK1lUVmZZUmhnWDJBWXBFL3NlSjFWa0Q3My9mTk5BdXkveHlUQXZrMkN0NW9FbXFtdUZNZkpNUUJNeGQxYXE2Vm1xdGZMTzE5YlJkWUE3ZGZLTlFXQ3RyU3d5TGROOFBHYmJ3TGtOblRCY2ZxSGRHeG9NcXoxMkFrY0M4dHhEeHIzR3A0d2VkQzE4TkN3Mk9tUWdydEljbHd4Rk1DVTdBanVZZ3d6THg1WHlsemJKZCtLZ3JSVWN0WWJBK3Z6cUFyTTJla1JrL084MDluTnRTRXFxekI5djNCVldGaldNbkhWWjVMMDZSc1ppcTdpdU1Yb1lsZkEyNFZxNGRHQzl5ZjcxNzRlbHh4UTEvOGJRQWh2Mm90ZDJIWGtzQnRMenBXY3AxZDAxeWZpdDJSbGU1eTFhWjhLSVdvQWZ6d1ZxZ2hBWk42N29xem9paHNlR0FSS1BoVkVaVzZ0bENKOEhaN0VDVVlRTTlJZFYxaTVvYTNTVjRMMGtJeHhGQnBHY1RLYUNkTklXcTkwK05HNUFSK3JkOWZsZzVWNmtWV1VYZXpQeWJSTVpsZ1d3MU5zUXpFOUhGNmJPTVB6eDQ4ZkNPTWZqQXlKZzR3VngwWGEvbUgzRFdEWUl6OSsvRWhhY2tGVjdOb3ZBS3FtenRML2EzQnlZYmlKQzhoeU1OLy9MWFY2TFFMeGd4VG56c2pQZWltQ2FSckJVT1E0akp6T0FKQTVqL0ZZSC8zejhjT3pTbE05UFp5eCtOWitaaUJjM2tzaTFzdm9RUGtqSFUyY0pQbld2dVlCdWJ5N3BWaDNneFBZajNRMmRydkRXN3VhQlhGNVJ3RnoxM1E5N0oyRDJJTGpLSExpeGdjbmNUN3QvOG5oOXAzbUltamhxdUJmeEZLby9xTUFaTDN3eDFWQkZ4ejNlYlUyQzlVL0MxQmRLUEt6QUtZSUhNVXJSUXd0NHVnWXg2c0VYa1hSNjd1N3V6SjZoOTJTLzRzU1ZSUUFsQ3pEQnBycGFDWDgrcTVTSVc4clpReVBLdGtMd1FHVDRBajBXcEVWZUpHMnIrR2VvWWJUNEwzWXVScXU4RWZzT3RrejA1SzlVb3ByVzEwSnNsSUVrLy9hUGt5bUhVdThaREtGRS9kTkZ0Q1pPVlVVWEdrUnMwczdsdmkybVRYYjh2Y0UrNTRKTm9iUDNIbDJxMmpxd3ZVbjJDaWg4RzF6OFJYODVvUThucGlhQVNtdCtid0xITE5ncmUxY1NPeWREUE1kaTNxdEg1UUlLQjJ6cFM1WWkwclRvN2dSZEUzMnpiVnNFRXBjTzU1bzdhcllOVkg1MENUaDNHMHQyUzB0S2FNck9STzk4U2ViZ2htQS9NY2oweXhPSGltbWR0OUUyb1BCd3grUklSZkRHK0xqRFI3a2oxZVFHUG9LLzlhdU50YXJsV0s2TUNianVJSmhWNUhmL2lvTHJvSVUxOGovL3Y2WFdmRXZSdkV2OHZndjdlcGZldFcvalBqZi8vWWE4S3l5MHVZZXdFVjBwbjE0WGRwR2M3MFFIZkMrRXdIUlRGZFJWNXJyWll5VDA2Mk1OR090QzI2aUdjY1ViR2RodWNnTjRyaGdQTUdjOXpySWp6RUtPc0pjY2IzUVdnbE1tTnhEOVU4YUxUR21lSTN0Z2xYUjhqVldMaEZvR1M5WExyUmRzQ3FHWDFkS3QrVUtlVXRXVHRzdS9xeFJxR0tYbXpGK1RPQXdQUlQrK1BuSFZYZ0JUS0dLWDBFYng3RUZLV2JvNklKWUt2ejgvd01BQVAvL2d5TUNHWFE3QVFBPQ==
+kind: Secret
+metadata:
+  creationTimestamp: "2026-10-20T19:31:05Z"
+  labels:
+    modifiedAt: "1792524601"
+    name: devops-release
+    owner: helm
+    status: deployed
+    version: "2"
+  name: sh.helm.release.v1.devops-release.v2
+  namespace: devops-lab4
+  resourceVersion: "9991"
+  uid: d2dd5016-9671-463a-b679-5c6a62b83676
+type: helm.sh/release.v1
+... [base64 gzipped release state data truncated] ...
+
+================================================================================
+[Task 6] Live Network Connectivity & HTTP Endpoint Verification
+================================================================================
+--- 6.1 NodePort 30080 Access ---
+$ curl -i -s http://192.168.49.2:30080/health
+HTTP/1.1 200 OK
+Server: nginx/1.31.6
+Date: Tue, 20 Oct 2026 19:32:03 GMT
+Content-Type: application/json
+Content-Length: 33
+Connection: keep-alive
+
+{"gateway":"nginx","status":"ok"}
+
+$ curl -i -s http://192.168.49.2:30080/api/v1/users/health
+HTTP/1.1 200 OK
+Server: nginx/1.31.6
+Date: Tue, 20 Oct 2026 19:32:03 GMT
+Content-Type: application/json
+Content-Length: 79
+Connection: keep-alive
+vary: Origin
+
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+$ curl -i -s http://192.168.49.2:30080/api/v1/products/health
+HTTP/1.1 200 OK
+Server: nginx/1.31.6
+Date: Tue, 20 Oct 2026 19:32:03 GMT
+Content-Type: application/json
+Content-Length: 82
+Connection: keep-alive
+vary: Origin
+
+{"service":"products-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+$ curl -i -s http://192.168.49.2:30080/api/v1/orders/health
+HTTP/1.1 200 OK
+Server: nginx/1.31.6
+Date: Tue, 20 Oct 2026 19:32:03 GMT
+Content-Type: application/json
+Content-Length: 80
+Connection: keep-alive
+vary: Origin
+
+{"service":"orders-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+--- 6.2 Ingress Access (Host: devops.local) ---
+$ curl -i -s -H "Host: devops.local" http://192.168.49.2/health
+HTTP/1.1 200 OK
+Date: Tue, 20 Oct 2026 19:32:03 GMT
+Content-Type: application/json
+Content-Length: 33
+Connection: keep-alive
+
+{"gateway":"nginx","status":"ok"}
+
+$ curl -i -s -H "Host: devops.local" http://192.168.49.2/api/v1/users/health
+HTTP/1.1 200 OK
+Date: Tue, 20 Oct 2026 19:32:03 GMT
+Content-Type: application/json
+Content-Length: 79
+Connection: keep-alive
+vary: Origin
+
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+$ curl -i -s -H "Host: devops.local" http://192.168.49.2/api/v1/products/health
+HTTP/1.1 200 OK
+Date: Tue, 20 Oct 2026 19:32:03 GMT
+Content-Type: application/json
+Content-Length: 82
+Connection: keep-alive
+vary: Origin
+
+{"service":"products-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+$ curl -i -s -H "Host: devops.local" http://192.168.49.2/api/v1/orders/health
+HTTP/1.1 200 OK
+Date: Tue, 20 Oct 2026 19:32:03 GMT
+Content-Type: application/json
+Content-Length: 80
+Connection: keep-alive
+vary: Origin
+
+{"service":"orders-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+================================================================================
+Deployment and verification completed successfully.
+================================================================================

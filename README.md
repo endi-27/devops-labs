@@ -257,3 +257,188 @@ kubectl delete -f k8s/00-namespace.yaml
 ```bash
 kubectl delete -R -f k8s/
 ```
+
+---
+
+## 📦 Пакування та розгортання через Helm (Лабораторна робота №4)
+
+Цей розділ документує пакування всієї мікросервісної платформи **DevOps Platform** у вигляді єдиного декларативного Helm-чарта (`helm/devops-platform/`). Застосування Helm 3 дозволяє уникнути дублювання «сирих» Kubernetes-маніфестів, параметризувати розгортання під різні середовища (`dev` та `prod`), централізовано управляти секретами та конфігураціями, а також надійно керувати життєвим циклом релізів (атомарні оновлення, відкати, хуки життєвого циклу та декларативні тести).
+
+### 1. Призначення чарта та структура каталогу
+
+Чарт `devops-platform` призначений для єдиного, відтворюваного та версіонованого розгортання повного стеку мікросервісів:
+- **База даних:** PostgreSQL 16 зі збереженням стану (`PVC`) та скриптом автоініціалізації (`initdb`).
+- **Кеш:** Redis 7 з політикою витіснення `volatile-lru`.
+- **Мікросервіси:** `users`, `products`, `orders` (Python 3.12, FastAPI).
+- **Мережевий шлюз та маршрутизація:** Nginx API Gateway (NodePort 30080) та Ingress Controller (`devops.local`).
+- **Забезпечення надійності:** Автоматичні хуки життєвого циклу (Pre-Upgrade Backup Job) та тести працездатності (`helm test`).
+
+#### Структура файлів чарта `helm/devops-platform/`:
+```text
+helm/devops-platform/
+├── Chart.yaml              # Метадані чарта (apiVersion: v2, version: 0.1.0, appVersion: "1.0.0")
+├── .helmignore             # Фільтри виключення службових файлів під час пакування
+├── values.yaml             # Базові конфігураційні значення за замовчуванням
+├── values-dev.yaml         # Профіль середовища розробки (1 репліка, DEBUG, знижені ресурси)
+├── values-prod.yaml        # Профіль продакшн-середовища (HA 3/2/2 репліки, INFO, Ingress, вищі ліміти)
+└── templates/
+    ├── _helpers.tpl        # Спільні Go-шаблони (fullname, labels, selectorLabels)
+    ├── NOTES.txt           # Інтерактивна інструкція доступу, що відображається після встановлення
+    ├── ingress.yaml        # Декларація Ingress ресурсу (devops.local)
+    ├── gateway/            # API Gateway Nginx (ConfigMap, Deployment, Service NodePort 30080)
+    ├── postgres/           # СУБД PostgreSQL (Secret, ConfigMap initdb, PVC, Deployment, Service)
+    ├── redis/              # In-memory кеш Redis (Deployment, Service)
+    ├── services/
+    │   ├── users/          # Users Service (ConfigMap, Secret, Deployment, Service)
+    │   ├── products/       # Products Service (ConfigMap, Secret, Deployment, Service)
+    │   └── orders/         # Orders Service (ConfigMap, Secret, Deployment, Service)
+    ├── hooks/
+    │   └── pre-upgrade-backup.yaml # Pre-Upgrade Hook (резервне копіювання/валідація перед оновленням)
+    └── tests/
+        └── test-health.yaml        # Release Test (перевірка HTTP ендпоінтів /health усіх сервісів)
+```
+
+> **Різниця між `version` та `appVersion` у `Chart.yaml`:**
+> - `version: 0.1.0` — версія самого Helm-чарта (пакета конфігурацій та шаблонів). Змінюється згідно SemVer при редагуванні шаблонів, додаванні параметрів у `values.yaml` або рефакторингу інфраструктури.
+> - `appVersion: "1.0.0"` — версія самого бізнес-застосунку/мікросервісів, що пакуються в цей чарт. Змінюється під час випуску нових релізів кодової бази та оновлення тегів контейнерних образів.
+
+---
+
+### 2. Таблиця ключових параметрів конфігурації `values.yaml`
+
+| Секція / Параметр | Тип | За замовчуванням | Опис та призначення |
+| :--- | :--- | :--- | :--- |
+| `postgres.replicas` | `int` | `1` | Кількість реплік подів бази даних |
+| `postgres.image.repository` / `tag` | `string` | `postgres` / `"16-alpine"` | Образ СУБД PostgreSQL |
+| `postgres.persistence.enabled` | `bool` | `true` | Активація PVC для збереження бази даних |
+| `postgres.persistence.size` | `string` | `"1Gi"` | Обсяг запитуваного дискового простору |
+| `postgres.secret.POSTGRES_DB` | `string` | `"devops_db"` | Системна база даних за замовчуванням |
+| `postgres.secret.POSTGRES_MULTIPLE_DATABASES` | `string` | `"users_db,products_db,orders_db"` | Перелік БД мікросервісів для автоініціалізації |
+| `redis.image.tag` | `string` | `"7-alpine"` | Версія кешу Redis |
+| `redis.maxmemory` / `maxmemoryPolicy` | `string` | `"128mb"` / `"volatile-lru"` | Обмеження пам'яті та стратегія витіснення |
+| `users.replicas` | `int` | `2` | Кількість реплік мікросервісу Users |
+| `users.image.repository` / `tag` | `string` | `devops-users` / `"1.0.0"` | Контейнерний образ сервісу Users |
+| `users.resources.requests` / `limits` | `map` | `cpu: 50m/250m, mem: 128Mi/384Mi` | Обмеження обчислювальних ресурсів |
+| `users.config.APP_CONFIG__LOG__LEVEL` | `string` | `"INFO"` | Рівень деталізації логування |
+| `products.replicas` | `int` | `1` | Кількість реплік мікросервісу Products |
+| `products.image.tag` | `string` | `"1.0.0"` | Тег образу мікросервісу Products |
+| `orders.replicas` | `int` | `1` | Кількість реплік мікросервісу Orders |
+| `orders.image.tag` | `string` | `"1.0.0"` | Тег образу мікросервісу Orders |
+| `gateway.service.type` | `string` | `NodePort` | Тип Kubernetes Service для Nginx Gateway |
+| `gateway.service.nodePort` | `int` | `30080` | Зовнішній статичний порт Minikube вузла |
+| `ingress.enabled` | `bool` | `true` | Увімкнення Ingress контролера |
+| `ingress.host` | `string` | `"devops.local"` | Доменне ім'я доступу до застосунку |
+
+---
+
+### 3. Швидкий старт (Розгортання релізу однією командою)
+
+```bash
+# Встановлення релізу у виділений простір імен devops-lab4
+helm install devops-release helm/devops-platform -n devops-lab4 --create-namespace
+
+# Моніторинг готовності розгортання подів
+kubectl rollout status deployment/postgres -n devops-lab4
+kubectl rollout status deployment/gateway -n devops-lab4
+kubectl rollout status deployment/users -n devops-lab4
+
+# Перегляд стану створених об'єктів
+kubectl get all,pvc,ingress -n devops-lab4
+```
+
+---
+
+### 4. Робота з різними середовищами (`values-dev.yaml` vs `values-prod.yaml`)
+
+Чарт підтримує роздільні конфігурації для локальної розробки та промислової експлуатації:
+
+| Параметр | Розробка (`values-dev.yaml`) | Продакшн (`values-prod.yaml`) |
+| :--- | :--- | :--- |
+| **Репліки (`users / products / orders`)** | `1 / 1 / 1` (економія пам'яті) | `3 / 2 / 2` (High Availability) |
+| **Теги образів** | `"dev"` | `"1.0.0"` (фіксований стабільний реліз) |
+| **Рівень логів** | `"DEBUG"` | `"INFO"` |
+| **Ресурси (`requests` / `limits`)** | `cpu: 25m/100m, mem: 64Mi/128Mi` | `cpu: 100m/500m, mem: 256Mi/512Mi` |
+| **Ingress Controller** | `disabled` (`dev.devops.local`) | `enabled` (`devops.local`) |
+
+#### Перевірка різниці маніфестів без розгортання в кластер (`helm template` + `diff`):
+```bash
+diff -u <(helm template devops-release helm/devops-platform -f helm/devops-platform/values-dev.yaml) \
+        <(helm template devops-release helm/devops-platform -f helm/devops-platform/values-prod.yaml)
+```
+
+#### Розгортання з конкретним профілем середовища:
+```bash
+# Розгортання середовища розробки:
+helm install devops-dev helm/devops-platform -f helm/devops-platform/values-dev.yaml -n devops-dev --create-namespace
+
+# Розгортання промислового середовища:
+helm install devops-prod helm/devops-platform -f helm/devops-platform/values-prod.yaml -n devops-prod --create-namespace
+```
+
+---
+
+### 5. Керування життєвим циклом релізу
+
+#### Оновлення релізу через прапорець `--set` (зміна тегу образу):
+```bash
+helm upgrade devops-release helm/devops-platform -n devops-lab4 --set users.image.tag=1.1.0 --reuse-values
+```
+
+#### Оновлення з профілем `values-prod.yaml` (масштабування та спрацювання Pre-Upgrade Hook):
+```bash
+helm upgrade devops-release helm/devops-platform -f helm/devops-platform/values-prod.yaml -n devops-lab4
+```
+
+#### Перегляд історії ревізій та статусів:
+```bash
+helm history devops-release -n devops-lab4
+```
+
+#### Безпечний відкат до базової ревізії 1:
+```bash
+helm rollback devops-release 1 -n devops-lab4
+```
+
+#### Запуск інтегрованих тестів релізу (`helm test`):
+```bash
+helm test devops-release -n devops-lab4 --logs
+```
+
+#### Видалення релізу зі збереженням бази даних (`PVC`):
+Завдяки анотації `helm.sh/resource-policy: keep` у шаблоні `templates/postgres/pvc.yaml`, том `postgres-data` залишається збереженим після видалення релізу:
+```bash
+helm uninstall devops-release -n devops-lab4
+# Підтвердження збереження PVC:
+kubectl get pvc -n devops-lab4
+```
+
+---
+
+### 6. Перевірка доступності застосунку
+
+Отримати IP кластера Minikube:
+```bash
+export MINIKUBE_IP=$(minikube ip)
+```
+
+#### Через NodePort (порт 30080):
+```bash
+curl -s http://$MINIKUBE_IP:30080/health
+curl -s http://$MINIKUBE_IP:30080/api/v1/users/health
+curl -s http://$MINIKUBE_IP:30080/api/v1/products/health
+curl -s http://$MINIKUBE_IP:30080/api/v1/orders/health
+```
+
+#### Через Ingress (`devops.local`):
+1. Додайте запис у `/etc/hosts`:
+```bash
+echo "$MINIKUBE_IP devops.local" | sudo tee -a /etc/hosts
+```
+2. Виконайте перевірку через домен:
+```bash
+curl -s http://devops.local/health
+curl -s http://devops.local/api/v1/users/health
+curl -s http://devops.local/api/v1/products/health
+curl -s http://devops.local/api/v1/orders/health
+```
+

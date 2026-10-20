@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders
+  labels:
+    {{- include "devops-platform.labels" . | nindent 4 }}
+    app: orders
+    app.kubernetes.io/name: orders
+spec:
+  type: {{ .Values.orders.service.type | default "ClusterIP" }}
+  selector:
+    app: orders
+  ports:
+    - name: http
+      port: {{ .Values.orders.service.port }}
+      targetPort: {{ .Values.orders.service.port }}

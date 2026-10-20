@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    {{- include "devops-platform.labels" . | nindent 4 }}
+    app: postgres
+    app.kubernetes.io/name: postgres
+spec:
+  replicas: {{ .Values.postgres.replicas | default 1 }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/postgres/configmap-initdb.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/postgres/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "devops-platform.labels" . | nindent 8 }}
+        app: postgres
+        app.kubernetes.io/name: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          ports:
+            - containerPort: {{ .Values.postgres.service.port | default 5432 }}
+              name: postgres
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: initdb-script
+              mountPath: /docker-entrypoint-initdb.d
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U {{ .Values.postgres.secret.POSTGRES_USER | default "devops_user" }} -d {{ .Values.postgres.secret.POSTGRES_DB | default "devops_db" }}
+            initialDelaySeconds: {{ .Values.postgres.probes.liveness.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ .Values.postgres.probes.liveness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.postgres.probes.liveness.timeoutSeconds | default 5 }}
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U {{ .Values.postgres.secret.POSTGRES_USER | default "devops_user" }} -d {{ .Values.postgres.secret.POSTGRES_DB | default "devops_db" }}
+            initialDelaySeconds: {{ .Values.postgres.probes.readiness.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .Values.postgres.probes.readiness.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.postgres.probes.readiness.timeoutSeconds | default 5 }}
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+      volumes:
+        - name: postgres-data
+          {{- if .Values.postgres.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: postgres-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: initdb-script
+          configMap:
+            name: postgres-initdb
+            defaultMode: 0755

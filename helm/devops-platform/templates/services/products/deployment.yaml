@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: products
+  labels:
+    {{- include "devops-platform.labels" . | nindent 4 }}
+    app: products
+    app.kubernetes.io/name: products
+spec:
+  replicas: {{ .Values.products.replicas }}
+  selector:
+    matchLabels:
+      app: products
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/services/products/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/services/products/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "devops-platform.labels" . | nindent 8 }}
+        app: products
+        app.kubernetes.io/name: products
+    spec:
+      containers:
+        - name: products
+          image: "{{ .Values.products.image.repository }}:{{ .Values.products.image.tag }}"
+          imagePullPolicy: {{ .Values.products.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.products.service.port }}
+              name: http
+          envFrom:
+            - configMapRef:
+                name: products-config
+            - secretRef:
+                name: products-secret
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.products.probes.liveness.path | default "/health" }}
+              port: {{ .Values.products.service.port }}
+            initialDelaySeconds: {{ .Values.products.probes.liveness.initialDelaySeconds | default 15 }}
+            periodSeconds: {{ .Values.products.probes.liveness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.products.probes.liveness.timeoutSeconds | default 5 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.products.probes.readiness.path | default "/health" }}
+              port: {{ .Values.products.service.port }}
+            initialDelaySeconds: {{ .Values.products.probes.readiness.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .Values.products.probes.readiness.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.products.probes.readiness.timeoutSeconds | default 5 }}
+          resources:
+            {{- toYaml .Values.products.resources | nindent 12 }}

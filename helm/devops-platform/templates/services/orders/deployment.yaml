@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+  labels:
+    {{- include "devops-platform.labels" . | nindent 4 }}
+    app: orders
+    app.kubernetes.io/name: orders
+spec:
+  replicas: {{ .Values.orders.replicas }}
+  selector:
+    matchLabels:
+      app: orders
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/services/orders/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/services/orders/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "devops-platform.labels" . | nindent 8 }}
+        app: orders
+        app.kubernetes.io/name: orders
+    spec:
+      containers:
+        - name: orders
+          image: "{{ .Values.orders.image.repository }}:{{ .Values.orders.image.tag }}"
+          imagePullPolicy: {{ .Values.orders.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.orders.service.port }}
+              name: http
+          envFrom:
+            - configMapRef:
+                name: orders-config
+            - secretRef:
+                name: orders-secret
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.orders.probes.liveness.path | default "/health" }}
+              port: {{ .Values.orders.service.port }}
+            initialDelaySeconds: {{ .Values.orders.probes.liveness.initialDelaySeconds | default 15 }}
+            periodSeconds: {{ .Values.orders.probes.liveness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.orders.probes.liveness.timeoutSeconds | default 5 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.orders.probes.readiness.path | default "/health" }}
+              port: {{ .Values.orders.service.port }}
+            initialDelaySeconds: {{ .Values.orders.probes.readiness.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .Values.orders.probes.readiness.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.orders.probes.readiness.timeoutSeconds | default 5 }}
+          resources:
+            {{- toYaml .Values.orders.resources | nindent 12 }}

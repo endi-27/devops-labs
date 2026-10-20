@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels:
+    {{- include "devops-platform.labels" . | nindent 4 }}
+    app: gateway
+    app.kubernetes.io/name: gateway
+spec:
+  replicas: {{ .Values.gateway.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/gateway/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "devops-platform.labels" . | nindent 8 }}
+        app: gateway
+        app.kubernetes.io/name: gateway
+    spec:
+      containers:
+        - name: gateway
+          image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}"
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.gateway.service.port | default 8000 }}
+              name: http
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.gateway.probes.liveness.path | default "/health" }}
+              port: {{ .Values.gateway.service.port | default 8000 }}
+            initialDelaySeconds: {{ .Values.gateway.probes.liveness.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.gateway.probes.liveness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.gateway.probes.liveness.timeoutSeconds | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.gateway.probes.readiness.path | default "/health" }}
+              port: {{ .Values.gateway.service.port | default 8000 }}
+            initialDelaySeconds: {{ .Values.gateway.probes.readiness.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.gateway.probes.readiness.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.gateway.probes.readiness.timeoutSeconds | default 3 }}
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: gateway-config

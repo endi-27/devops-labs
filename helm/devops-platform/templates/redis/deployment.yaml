@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    {{- include "devops-platform.labels" . | nindent 4 }}
+    app: redis
+    app.kubernetes.io/name: redis
+spec:
+  replicas: {{ .Values.redis.replicas | default 1 }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        {{- include "devops-platform.labels" . | nindent 8 }}
+        app: redis
+        app.kubernetes.io/name: redis
+    spec:
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          command:
+            - redis-server
+            - --requirepass
+            - {{ .Values.redis.password | quote }}
+            - --maxmemory
+            - {{ .Values.redis.maxmemory | default "128mb" | quote }}
+            - --maxmemory-policy
+            - {{ .Values.redis.maxmemoryPolicy | default "volatile-lru" | quote }}
+            - --save
+            - "60"
+            - "1"
+          ports:
+            - containerPort: {{ .Values.redis.service.port | default 6379 }}
+              name: redis
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - {{ .Values.redis.password | quote }}
+                - ping
+            initialDelaySeconds: {{ .Values.redis.probes.liveness.initialDelaySeconds | default 15 }}
+            periodSeconds: {{ .Values.redis.probes.liveness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.redis.probes.liveness.timeoutSeconds | default 5 }}
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - {{ .Values.redis.password | quote }}
+                - ping
+            initialDelaySeconds: {{ .Values.redis.probes.readiness.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.redis.probes.readiness.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.redis.probes.readiness.timeoutSeconds | default 5 }}
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}

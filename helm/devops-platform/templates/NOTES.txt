@@ -1,0 +1,29 @@
+1. Get the application URL by running these commands:
+{{- if .Values.ingress.enabled }}
+  Ingress is enabled!
+  Add the following entry to your /etc/hosts:
+    echo "$(minikube ip 2>/dev/null || echo '127.0.0.1') {{ .Values.ingress.host }}" | sudo tee -a /etc/hosts
+
+  Then access the DevOps Platform at:
+    http://{{ .Values.ingress.host }}/
+
+  Endpoints available:
+    - Root:     http://{{ .Values.ingress.host }}/
+    - Health:   http://{{ .Values.ingress.host }}/health
+    - Users:    http://{{ .Values.ingress.host }}/api/v1/users
+    - Products: http://{{ .Values.ingress.host }}/api/v1/products
+    - Orders:   http://{{ .Values.ingress.host }}/api/v1/orders
+{{- else }}
+  Ingress is disabled.
+{{- end }}
+
+{{- if eq .Values.gateway.service.type "NodePort" }}
+  NodePort access:
+    export NODE_PORT={{ .Values.gateway.service.nodePort }}
+    export NODE_IP=$(minikube ip 2>/dev/null || kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "Gateway URL: http://$NODE_IP:$NODE_PORT"
+{{- end }}
+
+  Port-forwarding access:
+    kubectl port-forward --namespace {{ .Release.Namespace }} svc/gateway 8000:{{ .Values.gateway.service.port }}
+    echo "Gateway URL: http://localhost:8000"

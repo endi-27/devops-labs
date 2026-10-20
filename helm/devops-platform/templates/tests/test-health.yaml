@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "devops-platform.fullname" . }}-test-health"
+  labels:
+    {{- include "devops-platform.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test-health
+      image: curlimages/curl:8.5.0
+      imagePullPolicy: IfNotPresent
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "=== Running Helm Test Health Check ==="
+          echo "1. Checking Gateway health (http://gateway:{{ .Values.gateway.service.port | default 8000 }}/health)..."
+          curl -fsS --max-time 10 http://gateway:{{ .Values.gateway.service.port | default 8000 }}/health
+          echo ""
+
+          echo "2. Checking Users service health (http://users:{{ .Values.users.service.port | default 8001 }}/health)..."
+          curl -fsS --max-time 10 http://users:{{ .Values.users.service.port | default 8001 }}/health
+          echo ""
+
+          echo "3. Checking Products service health (http://products:{{ .Values.products.service.port | default 8002 }}/health)..."
+          curl -fsS --max-time 10 http://products:{{ .Values.products.service.port | default 8002 }}/health
+          echo ""
+
+          echo "4. Checking Orders service health (http://orders:{{ .Values.orders.service.port | default 8003 }}/health)..."
+          curl -fsS --max-time 10 http://orders:{{ .Values.orders.service.port | default 8003 }}/health
+          echo ""
+
+          echo "=== All services passed health checks successfully! ==="
+          exit 0

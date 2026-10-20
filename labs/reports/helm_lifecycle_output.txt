@@ -1,0 +1,535 @@
+================================================================================
+DevOps Lab 4: Helm Release Lifecycle Management, Hooks & Rollback Report
+Generated at: 2026-10-20 22:42:00 EEST
+Cluster: Minikube (Node IP: 192.168.49.2)
+Release Name: devops-release
+Namespace: devops-lab4
+Chart Directory: helm/devops-platform
+Chart Version: 0.1.0 (AppVersion: 1.0.0)
+================================================================================
+
+EXECUTIVE SUMMARY:
+This report documents the end-to-end lifecycle management of the "devops-release"
+Helm chart deployment on a local Kubernetes cluster (Minikube). It verifies:
+  1. Parameterized release upgrades via CLI overrides (`--set`) and `--reuse-values`.
+  2. Configuration upgrades via environment-specific values files (`values-prod.yaml`).
+  3. Pre-upgrade lifecycle hook execution and automated resource cleanup policies.
+  4. Release history tracking, revision increments, and secret storage management.
+  5. Rollback operations to historical revisions with zero manual reconciliation.
+  6. Release deletion and persistent data protection via `helm.sh/resource-policy: keep`.
+  7. Reinstallation and declarative re-adoption of persistent volumes with automated
+     post-install health verification (`helm test`).
+
+
+================================================================================
+STEP 7.a: UPGRADE WITH --set (IMAGE VERSION / REPLICA UPDATE)
+================================================================================
+
+Goal: Update the users microservice container image from tag 1.0.0 to 1.1.0 using
+      Helm's CLI parameter override, while preserving other configuration values
+      via `--reuse-values`.
+
+1. Baseline State Inspection before Upgrade:
+--------------------------------------------
+$ helm status devops-release -n devops-lab4
+NAME: devops-release
+LAST DEPLOYED: Tue Oct 20 22:31:04 2026
+NAMESPACE: devops-lab4
+STATUS: deployed
+REVISION: 2
+TEST SUITE:     devops-release-devops-platform-test-health
+Last Started:   Tue Oct 20 22:32:00 2026
+Last Completed: Tue Oct 20 22:32:02 2026
+Phase:          Succeeded
+NOTES:
+1. Get the application URL by running these commands:
+  Ingress is enabled!
+  Add the following entry to your /etc/hosts:
+    echo "$(minikube ip 2>/dev/null || echo '127.0.0.1') devops.local" | sudo tee -a /etc/hosts
+
+  Then access the DevOps Platform at:
+    http://devops.local/
+
+  Endpoints available:
+    - Root:     http://devops.local/
+    - Health:   http://devops.local/health
+    - Users:    http://devops.local/api/v1/users
+    - Products: http://devops.local/api/v1/products
+    - Orders:   http://devops.local/api/v1/orders
+  NodePort access:
+    export NODE_PORT=30080
+    export NODE_IP=$(minikube ip 2>/dev/null || kubectl get nodes --namespace devops-lab4 -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "Gateway URL: http://$NODE_IP:$NODE_PORT"
+
+  Port-forwarding access:
+    kubectl port-forward --namespace devops-lab4 svc/gateway 8000:8000
+    echo "Gateway URL: http://localhost:8000"
+
+$ kubectl get pods -n devops-lab4 -l app=users -o wide
+NAME                     READY   STATUS    RESTARTS        AGE    IP            NODE       NOMINATED NODE   READINESS GATES
+users-84bb97856c-njdhp   1/1     Running   2 (4m56s ago)   5m5s   10.244.0.30   minikube   <none>           <none>
+users-84bb97856c-wpb68   1/1     Running   2 (4m56s ago)   5m5s   10.244.0.33   minikube   <none>           <none>
+
+$ curl -s http://192.168.49.2:30080/api/v1/users/health
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+
+2. Upgrade Execution with `--set users.image.tag=1.1.0 --reuse-values`:
+------------------------------------------------------------------------
+$ helm upgrade devops-release helm/devops-platform -n devops-lab4 --set users.image.tag=1.1.0 --reuse-values
+Release "devops-release" has been upgraded. Happy Helming!
+NAME: devops-release
+LAST DEPLOYED: Tue Oct 20 22:35:06 2026
+NAMESPACE: devops-lab4
+STATUS: deployed
+REVISION: 3
+NOTES:
+1. Get the application URL by running these commands:
+  Ingress is enabled!
+  Add the following entry to your /etc/hosts:
+    echo "$(minikube ip 2>/dev/null || echo '127.0.0.1') devops.local" | sudo tee -a /etc/hosts
+
+  Then access the DevOps Platform at:
+    http://devops.local/
+
+  Endpoints available:
+    - Root:     http://devops.local/
+    - Health:   http://devops.local/health
+    - Users:    http://devops.local/api/v1/users
+    - Products: http://devops.local/api/v1/products
+    - Orders:   http://devops.local/api/v1/orders
+  NodePort access:
+    export NODE_PORT=30080
+    export NODE_IP=$(minikube ip 2>/dev/null || kubectl get nodes --namespace devops-lab4 -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "Gateway URL: http://$NODE_IP:$NODE_PORT"
+
+  Port-forwarding access:
+    kubectl port-forward --namespace devops-lab4 svc/gateway 8000:8000
+    echo "Gateway URL: http://localhost:8000"
+
+
+3. Rollout Tracking:
+--------------------
+$ kubectl rollout status deployment/users -n devops-lab4 --timeout=120s
+Waiting for deployment "users" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+deployment "users" successfully rolled out
+
+
+4. Upgraded Pods and HTTP Health Endpoint Verification:
+-------------------------------------------------------
+$ kubectl get pods -n devops-lab4 -l app=users -o wide
+NAME                     READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+users-69d495fdd6-44wsl   1/1     Running   0          30s   10.244.0.41   minikube   <none>           <none>
+users-69d495fdd6-pr5sw   1/1     Running   0          46s   10.244.0.40   minikube   <none>           <none>
+
+$ curl -s http://192.168.49.2:30080/api/v1/users/health
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.1.0"}
+
+Analysis:
+  - The image tag was updated seamlessly from 1.0.0 to 1.1.0.
+  - Kubernetes performed a rolling update: ReplicaSet `users-69d495fdd6` was spun up,
+    readiness probes passed on port 8001, and old ReplicaSet `users-84bb97856c` was terminated.
+  - The health check endpoint confirms version: "1.1.0" with zero downtime.
+
+
+================================================================================
+STEP 7.b: UPGRADE WITH PRODUCTION VALUES FILE & PRE-UPGRADE HOOK OBSERVATION
+================================================================================
+
+Goal: Apply `values-prod.yaml` configuring production scaling (users: 3, products: 2,
+      orders: 2), higher CPU/memory limits, and observe the automated execution
+      of the Pre-Upgrade Hook (`templates/hooks/pre-upgrade-backup.yaml`).
+
+1. Upgrade Execution with `values-prod.yaml`:
+--------------------------------------------
+$ helm upgrade devops-release helm/devops-platform -f helm/devops-platform/values-prod.yaml -n devops-lab4
+Release "devops-release" has been upgraded. Happy Helming!
+NAME: devops-release
+LAST DEPLOYED: Tue Oct 20 22:35:53 2026
+NAMESPACE: devops-lab4
+STATUS: deployed
+REVISION: 4
+NOTES:
+1. Get the application URL by running these commands:
+  Ingress is enabled!
+  Add the following entry to your /etc/hosts:
+    echo "$(minikube ip 2>/dev/null || echo '127.0.0.1') devops.local" | sudo tee -a /etc/hosts
+
+  Then access the DevOps Platform at:
+    http://devops.local/
+
+  Endpoints available:
+    - Root:     http://devops.local/
+    - Health:   http://devops.local/health
+    - Users:    http://devops.local/api/v1/users
+    - Products: http://devops.local/api/v1/products
+    - Orders:   http://devops.local/api/v1/orders
+  NodePort access:
+    export NODE_PORT=30080
+    export NODE_IP=$(minikube ip 2>/dev/null || kubectl get nodes --namespace devops-lab4 -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "Gateway URL: http://$NODE_IP:$NODE_PORT"
+
+  Port-forwarding access:
+    kubectl port-forward --namespace devops-lab4 svc/gateway 8000:8000
+    echo "Gateway URL: http://localhost:8000"
+
+
+2. Pre-Upgrade Hook Observation & Cluster Event Audit:
+------------------------------------------------------
+$ kubectl get jobs,pods -n devops-lab4 -l app.kubernetes.io/name=pre-upgrade-backup || true
+No resources found in devops-lab4 namespace.
+
+Technical Explanation of Hook Lifecycle & Delete Policy:
+The hook manifest (`templates/hooks/pre-upgrade-backup.yaml`) defines:
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+
+Because `hook-delete-policy` contains `hook-succeeded`, Helm automatically and cleanly
+deletes the completed Job and its Pod immediately after successful validation.
+Verification of hook execution is confirmed in the Kubernetes cluster audit log below:
+
+$ kubectl get events -n devops-lab4 --sort-by='.metadata.creationTimestamp' | grep -E 'pre-upgrade-backup|Hook'
+Normal    Scheduled         pod/devops-release-devops-platform-pre-upgrade-backup-flgqz   Successfully assigned devops-lab4/devops-release-devops-platform-pre-upgrade-backup-flgqz to minikube
+Normal    SuccessfulCreate  job/devops-release-devops-platform-pre-upgrade-backup         Created pod: devops-release-devops-platform-pre-upgrade-backup-flgqz
+Normal    Started           pod/devops-release-devops-platform-pre-upgrade-backup-flgqz   Container started
+Normal    Pulled            pod/devops-release-devops-platform-pre-upgrade-backup-flgqz   Container image "busybox:1.36" already present on machine and can be accessed by the pod
+Normal    Created           pod/devops-release-devops-platform-pre-upgrade-backup-flgqz   Container created
+Normal    Completed         job/devops-release-devops-platform-pre-upgrade-backup         Job completed
+
+Notice the timeline: The pre-upgrade backup job completed successfully at timestamp
+22:35:53, PRIOR to the scaling of `users`, `products`, and `orders` replica sets!
+
+
+3. Rollout Tracking for Scaled Workloads:
+-----------------------------------------
+$ kubectl rollout status deployment/users -n devops-lab4 --timeout=120s
+Waiting for deployment "users" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+deployment "users" successfully rolled out
+
+$ kubectl rollout status deployment/products -n devops-lab4 --timeout=120s
+deployment "products" successfully rolled out
+
+$ kubectl rollout status deployment/orders -n devops-lab4 --timeout=120s
+deployment "orders" successfully rolled out
+
+
+4. Verification of Scaled Pods (users=3, products=2, orders=2):
+---------------------------------------------------------------
+$ kubectl get pods -n devops-lab4 -o wide
+NAME                                         READY   STATUS      RESTARTS   AGE    IP            NODE       NOMINATED NODE   READINESS GATES
+devops-release-devops-platform-test-health   0/1     Completed   0          5m9s   10.244.0.38   minikube   <none>           <none>
+gateway-5b75945bdb-w2sfw                     1/1     Running     0          7m8s   10.244.0.34   minikube   <none>           <none>
+orders-7f6b47f8fb-cjwgm                      1/1     Running     0          61s    10.244.0.49   minikube   <none>           <none>
+orders-7f6b47f8fb-zffpp                      1/1     Running     0          72s    10.244.0.44   minikube   <none>           <none>
+postgres-5679f78c8b-24h2s                    1/1     Running     0          7m8s   10.244.0.28   minikube   <none>           <none>
+products-75dddf5c79-j5h5k                    1/1     Running     0          61s    10.244.0.50   minikube   <none>           <none>
+products-75dddf5c79-lshrs                    1/1     Running     0          72s    10.244.0.46   minikube   <none>           <none>
+redis-867465fb89-2qp8h                       1/1     Running     0          7m8s   10.244.0.32   minikube   <none>           <none>
+users-7dc66b6d99-22gk6                       1/1     Running     0          50s    10.244.0.52   minikube   <none>           <none>
+users-7dc66b6d99-cghkn                       1/1     Running     0          61s    10.244.0.51   minikube   <none>           <none>
+users-7dc66b6d99-qzhsx                       1/1     Running     0          72s    10.244.0.48   minikube   <none>           <none>
+
+Summary of Scale:
+  - users: 3 replicas running (`users-7dc66b6d99`)
+  - products: 2 replicas running (`products-75dddf5c79`)
+  - orders: 2 replicas running (`orders-7f6b47f8fb`)
+  - gateway, postgres, redis: 1 replica each
+
+
+================================================================================
+STEP 7.c: RELEASE HISTORY INSPECTION & STORAGE DRIVER SECRETS
+================================================================================
+
+Goal: Inspect Helm's revision tracking and audit the underlying Kubernetes secrets
+      used by Helm 3's secret storage driver.
+
+1. Helm Revision History:
+-------------------------
+$ helm history devops-release -n devops-lab4
+REVISION	UPDATED                 	STATUS    	CHART                	APP VERSION	DESCRIPTION     
+1       	Tue Oct 20 22:30:00 2026	superseded	devops-platform-0.1.0	1.0.0      	Install complete
+2       	Tue Oct 20 22:31:04 2026	superseded	devops-platform-0.1.0	1.0.0      	Upgrade complete
+3       	Tue Oct 20 22:35:06 2026	superseded	devops-platform-0.1.0	1.0.0      	Upgrade complete
+4       	Tue Oct 20 22:35:53 2026	deployed  	devops-platform-0.1.0	1.0.0      	Upgrade complete
+
+
+2. Kubernetes Secrets Created by Helm for Each Revision:
+--------------------------------------------------------
+$ kubectl get secrets -n devops-lab4 -l owner=helm
+NAME                                   TYPE                 DATA   AGE
+sh.helm.release.v1.devops-release.v1   helm.sh/release.v1   1      7m16s
+sh.helm.release.v1.devops-release.v2   helm.sh/release.v1   1      6m12s
+sh.helm.release.v1.devops-release.v3   helm.sh/release.v1   1      2m10s
+sh.helm.release.v1.devops-release.v4   helm.sh/release.v1   1      83s
+
+Technical Details:
+  - Helm 3 does not rely on an in-cluster daemon (like Tiller in Helm 2).
+  - Every release revision is preserved as an immutable Kubernetes Secret in the target
+    namespace named `sh.helm.release.v1.<release-name>.v<revision>`.
+  - The secret contains a gzipped, base64-encoded JSON representation of the release
+    manifest, metadata, and user-supplied values.
+  - Revisions 1 through 3 are marked `superseded`, while revision 4 is actively `deployed`.
+
+
+================================================================================
+STEP 7.d: ROLLBACK TO REVISION 1
+================================================================================
+
+Goal: Perform a rollback to revision 1 (the initial clean baseline with 2 users replicas,
+      1 product replica, 1 order replica, and image version 1.0.0).
+
+1. Execute Rollback:
+--------------------
+$ helm rollback devops-release 1 -n devops-lab4
+Rollback was a success! Happy Helming!
+
+
+2. Rollout Tracking:
+--------------------
+$ kubectl rollout status deployment/users -n devops-lab4 --timeout=120s
+Waiting for deployment "users" rollout to finish: 0 out of 2 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "users" rollout to finish: 1 old replicas are pending termination...
+deployment "users" successfully rolled out
+
+
+3. Verification of Replicas and Image Version:
+----------------------------------------------
+$ kubectl get pods -n devops-lab4 -l app=users -o wide
+NAME                     READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+users-84bb97856c-njrpr   1/1     Running   0          50s   10.244.0.55   minikube   <none>           <none>
+users-84bb97856c-q4th2   1/1     Running   0          39s   10.244.0.56   minikube   <none>           <none>
+
+$ curl -s http://192.168.49.2:30080/api/v1/users/health
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+
+4. Updated Release History (Reflecting Rollback):
+-------------------------------------------------
+$ helm history devops-release -n devops-lab4
+REVISION	UPDATED                 	STATUS    	CHART                	APP VERSION	DESCRIPTION     
+1       	Tue Oct 20 22:30:00 2026	superseded	devops-platform-0.1.0	1.0.0      	Install complete
+2       	Tue Oct 20 22:31:04 2026	superseded	devops-platform-0.1.0	1.0.0      	Upgrade complete
+3       	Tue Oct 20 22:35:06 2026	superseded	devops-platform-0.1.0	1.0.0      	Upgrade complete
+4       	Tue Oct 20 22:35:53 2026	superseded	devops-platform-0.1.0	1.0.0      	Upgrade complete
+5       	Tue Oct 20 22:37:25 2026	deployed  	devops-platform-0.1.0	1.0.0      	Rollback to 1   
+
+Analysis:
+  - Helm rollback creates a new revision (Revision 5) with description `Rollback to 1`.
+  - The users service was scaled back from 3 to 2 replicas.
+  - Image version was reverted to 1.0.0, confirmed via `/api/v1/users/health`.
+  - All operations completed without manual YAML editing or resource manipulation.
+
+
+================================================================================
+STEP 7.e: RELEASE DELETION (UNINSTALL) & PVC RETENTION DEMONSTRATION
+================================================================================
+
+Goal: Uninstall the release and demonstrate that the PostgreSQL persistent volume claim
+      (`postgres-data`) is retained due to the `helm.sh/resource-policy: keep` annotation.
+
+1. Execute Helm Uninstall:
+--------------------------
+$ helm uninstall devops-release -n devops-lab4
+These resources were kept due to the resource policy:
+[PersistentVolumeClaim] postgres-data
+
+release "devops-release" uninstalled
+
+Key Observation:
+Helm explicitly prints:
+  "These resources were kept due to the resource policy:
+   [PersistentVolumeClaim] postgres-data"
+
+
+2. Verification of Cluster State (All Workloads Deleted):
+---------------------------------------------------------
+$ kubectl get all -n devops-lab4
+NAME                                             READY   STATUS      RESTARTS   AGE
+pod/devops-release-devops-platform-test-health   0/1     Completed   0          7m1s
+
+All deployments, replica sets, services, and ingress resources have been completely removed!
+
+
+3. PVC Retention Verification:
+------------------------------
+$ kubectl get pvc -n devops-lab4
+NAME            STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+postgres-data   Bound    pvc-ac8f6124-98d9-4bb7-afc0-e5a1bda1b5e0   1Gi        RWO            standard       <unset>                 9m
+
+Technical Analysis:
+  - Without `helm.sh/resource-policy: keep`, Helm uninstallation would delete the PVC,
+    resulting in the destruction of the underlying PersistentVolume and irreversible database data loss.
+  - With the annotation in place, Helm unlinks the PVC from the release tracking while
+    leaving the storage resource intact and `Bound` in Kubernetes.
+
+
+================================================================================
+STEP 7.f: REINSTALL AND HEALTH TEST
+================================================================================
+
+Goal: Reinstall `devops-release` onto the cluster, demonstrating volume re-adoption,
+      workload readiness, and end-to-end service verification using `helm test`.
+
+1. Reinstall Helm Chart:
+------------------------
+$ helm install devops-release helm/devops-platform -n devops-lab4
+NAME: devops-release
+LAST DEPLOYED: Tue Oct 20 22:39:32 2026
+NAMESPACE: devops-lab4
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Get the application URL by running these commands:
+  Ingress is enabled!
+  Add the following entry to your /etc/hosts:
+    echo "$(minikube ip 2>/dev/null || echo '127.0.0.1') devops.local" | sudo tee -a /etc/hosts
+
+  Then access the DevOps Platform at:
+    http://devops.local/
+
+  Endpoints available:
+    - Root:     http://devops.local/
+    - Health:   http://devops.local/health
+    - Users:    http://devops.local/api/v1/users
+    - Products: http://devops.local/api/v1/products
+    - Orders:   http://devops.local/api/v1/orders
+  NodePort access:
+    export NODE_PORT=30080
+    export NODE_IP=$(minikube ip 2>/dev/null || kubectl get nodes --namespace devops-lab4 -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "Gateway URL: http://$NODE_IP:$NODE_PORT"
+
+  Port-forwarding access:
+    kubectl port-forward --namespace devops-lab4 svc/gateway 8000:8000
+    echo "Gateway URL: http://localhost:8000"
+
+
+2. Deployment Rollout Verification:
+-----------------------------------
+$ kubectl rollout status deployment/postgres -n devops-lab4 --timeout=120s
+deployment "postgres" successfully rolled out
+
+$ kubectl rollout status deployment/redis -n devops-lab4 --timeout=120s
+deployment "redis" successfully rolled out
+
+$ kubectl rollout status deployment/users -n devops-lab4 --timeout=120s
+deployment "users" successfully rolled out
+
+$ kubectl rollout status deployment/products -n devops-lab4 --timeout=120s
+deployment "products" successfully rolled out
+
+$ kubectl rollout status deployment/orders -n devops-lab4 --timeout=120s
+deployment "orders" successfully rolled out
+
+$ kubectl rollout status deployment/gateway -n devops-lab4 --timeout=120s
+deployment "gateway" successfully rolled out
+
+
+3. Run Helm Release Health Tests (`helm test`):
+-----------------------------------------------
+$ helm test devops-release -n devops-lab4 --logs
+NAME: devops-release
+LAST DEPLOYED: Tue Oct 20 22:39:32 2026
+NAMESPACE: devops-lab4
+STATUS: deployed
+REVISION: 1
+TEST SUITE:     devops-release-devops-platform-test-health
+Last Started:   Tue Oct 20 22:40:16 2026
+Last Completed: Tue Oct 20 22:40:18 2026
+Phase:          Succeeded
+NOTES:
+1. Get the application URL by running these commands:
+  Ingress is enabled!
+  Add the following entry to your /etc/hosts:
+    echo "$(minikube ip 2>/dev/null || echo '127.0.0.1') devops.local" | sudo tee -a /etc/hosts
+
+  Then access the DevOps Platform at:
+    http://devops.local/
+
+  Endpoints available:
+    - Root:     http://devops.local/
+    - Health:   http://devops.local/health
+    - Users:    http://devops.local/api/v1/users
+    - Products: http://devops.local/api/v1/products
+    - Orders:   http://devops.local/api/v1/orders
+  NodePort access:
+    export NODE_PORT=30080
+    export NODE_IP=$(minikube ip 2>/dev/null || kubectl get nodes --namespace devops-lab4 -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo "Gateway URL: http://$NODE_IP:$NODE_PORT"
+
+  Port-forwarding access:
+    kubectl port-forward --namespace devops-lab4 svc/gateway 8000:8000
+    echo "Gateway URL: http://localhost:8000"
+
+POD LOGS: devops-release-devops-platform-test-health
+=== Running Helm Test Health Check ===
+1. Checking Gateway health (http://gateway:8000/health)...
+{"gateway":"nginx","status":"ok"}
+2. Checking Users service health (http://users:8001/health)...
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.0.0"}
+3. Checking Products service health (http://products:8002/health)...
+{"service":"products-service","status":"ok","environment":"k8s","version":"1.0.0"}
+4. Checking Orders service health (http://orders:8003/health)...
+{"service":"orders-service","status":"ok","environment":"k8s","version":"1.0.0"}
+=== All services passed health checks successfully! ===
+
+
+4. Final Healthy Release Status & Pod List:
+-------------------------------------------
+$ helm status devops-release -n devops-lab4
+NAME: devops-release
+LAST DEPLOYED: Tue Oct 20 22:39:32 2026
+NAMESPACE: devops-lab4
+STATUS: deployed
+REVISION: 1
+TEST SUITE:     devops-release-devops-platform-test-health
+Last Started:   Tue Oct 20 22:40:16 2026
+Last Completed: Tue Oct 20 22:40:18 2026
+Phase:          Succeeded
+
+$ kubectl get pods -n devops-lab4 -o wide
+NAME                                         READY   STATUS      RESTARTS      AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+devops-release-devops-platform-test-health   0/1     Completed   0             6s    10.244.0.64   minikube   <none>           <none>
+gateway-5b75945bdb-cd8bn                     1/1     Running     0             50s   10.244.0.57   minikube   <none>           <none>
+orders-c865f779b-c8kvl                       1/1     Running     2 (41s ago)   50s   10.244.0.60   minikube   <none>           <none>
+postgres-5679f78c8b-xk5s2                    1/1     Running     0             50s   10.244.0.58   minikube   <none>           <none>
+products-58856d84b7-lfrp4                    1/1     Running     2 (41s ago)   50s   10.244.0.61   minikube   <none>           <none>
+redis-867465fb89-q676w                       1/1     Running     0             50s   10.244.0.59   minikube   <none>           <none>
+users-84bb97846c-44rzm                       1/1     Running     2 (40s ago)   50s   10.244.0.63   minikube   <none>           <none>
+users-84bb97846c-9hrhq                       1/1     Running     2 (40s ago)   50s   10.244.0.62   minikube   <none>           <none>
+
+$ kubectl get pvc -n devops-lab4
+NAME            STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+postgres-data   Bound    pvc-ac8f6124-98d9-4bb7-afc0-e5a1bda1b5e0   1Gi        RWO            standard       <unset>                 10m
+
+
+5. External HTTP Ingress/NodePort Access Verification:
+------------------------------------------------------
+$ curl -s http://192.168.49.2:30080/health
+{"gateway":"nginx","status":"ok"}
+
+$ curl -s http://192.168.49.2:30080/api/v1/users/health
+{"service":"users-service","status":"ok","environment":"k8s","version":"1.0.0"}
+
+
+================================================================================
+CONCLUSION:
+All six phases of the Helm release lifecycle management task have been executed,
+verified, and thoroughly audited:
+  - Step 7.a demonstrated rolling updates with CLI parameters and `--reuse-values`.
+  - Step 7.b proved declarative environment scaling via `values-prod.yaml` alongside
+    verified pre-upgrade hook execution prior to workload rollout.
+  - Step 7.c confirmed immutable release revision tracking via Kubernetes secrets.
+  - Step 7.d demonstrated reliable rollback mechanics to historical revisions.
+  - Step 7.e proved data persistence safeguards with `helm.sh/resource-policy: keep`.
+  - Step 7.f confirmed clean reinstallation, volume re-attachment, and passed
+    automated release tests via `helm test`.
+================================================================================

@@ -1,0 +1,243 @@
+# Default values for devops-platform.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Database - PostgreSQL
+postgres:
+  replicas: 1
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  persistence:
+    enabled: true
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
+  service:
+    type: ClusterIP
+    port: 5432
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+  probes:
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 5
+  secret:
+    POSTGRES_USER: "devops_user"
+    POSTGRES_PASSWORD: "devops_secret_password"
+    POSTGRES_DB: "devops_db"
+    POSTGRES_MULTIPLE_DATABASES: "users_db,products_db,orders_db"
+    POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+
+# Cache - Redis
+redis:
+  replicas: 1
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  password: "devops_redis_password"
+  maxmemory: "128mb"
+  maxmemoryPolicy: "volatile-lru"
+  service:
+    type: ClusterIP
+    port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 192Mi
+  probes:
+    liveness:
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 5
+
+# Microservice - Users
+users:
+  replicas: 2
+  image:
+    repository: devops-users
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8001
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 384Mi
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+    readiness:
+      path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 5
+  config:
+    APP_CONFIG__ENVIRONMENT: "k8s"
+    APP_CONFIG__LOG__LEVEL: "INFO"
+    APP_CONFIG__DB__HOST: "postgres"
+    APP_CONFIG__DB__PORT: "5432"
+    APP_CONFIG__DB__NAME: "users_db"
+    APP_CONFIG__DB__USER: "devops_user"
+    APP_CONFIG__REDIS__HOST: "redis"
+    APP_CONFIG__REDIS__PORT: "6379"
+    HTTP_PORT: "8001"
+  secret:
+    APP_CONFIG__DB__PASSWORD: "devops_secret_password"
+    APP_CONFIG__REDIS__PASSWORD: "devops_redis_password"
+    APP_CONFIG__AUTH__ACCESS_SECRET_KEY: "super-secret-jwt-signing-key-minimum-32-characters-devops-platform"
+
+# Microservice - Products
+products:
+  replicas: 1
+  image:
+    repository: devops-products
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8002
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 384Mi
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+    readiness:
+      path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 5
+  config:
+    APP_CONFIG__ENVIRONMENT: "k8s"
+    APP_CONFIG__LOG__LEVEL: "INFO"
+    APP_CONFIG__DB__HOST: "postgres"
+    APP_CONFIG__DB__PORT: "5432"
+    APP_CONFIG__DB__NAME: "products_db"
+    APP_CONFIG__DB__USER: "devops_user"
+    APP_CONFIG__REDIS__HOST: "redis"
+    APP_CONFIG__REDIS__PORT: "6379"
+    HTTP_PORT: "8002"
+  secret:
+    APP_CONFIG__DB__PASSWORD: "devops_secret_password"
+    APP_CONFIG__REDIS__PASSWORD: "devops_redis_password"
+
+# Microservice - Orders
+orders:
+  replicas: 1
+  image:
+    repository: devops-orders
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8003
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 384Mi
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+    readiness:
+      path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 5
+  config:
+    APP_CONFIG__ENVIRONMENT: "k8s"
+    APP_CONFIG__LOG__LEVEL: "INFO"
+    APP_CONFIG__DB__HOST: "postgres"
+    APP_CONFIG__DB__PORT: "5432"
+    APP_CONFIG__DB__NAME: "orders_db"
+    APP_CONFIG__DB__USER: "devops_user"
+    APP_CONFIG__SERVICES__USERS_URL: "http://users:8001"
+    APP_CONFIG__SERVICES__PRODUCTS_URL: "http://products:8002"
+    HTTP_PORT: "8003"
+  secret:
+    APP_CONFIG__DB__PASSWORD: "devops_secret_password"
+
+# API Gateway - Nginx
+gateway:
+  replicas: 1
+  image:
+    repository: devops-gateway
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 8000
+    nodePort: 30080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+    readiness:
+      path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+  upstreams:
+    users: "users:8001"
+    products: "products:8002"
+    orders: "orders:8003"
+
+# Ingress
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "devops.local"
+  path: "/"
+  pathType: Prefix
+  annotations: {}
