@@ -6,9 +6,23 @@ on:
       - main
       - 'feature/**'
       - 'fix/**'
+    paths-ignore:
+      - 'bootstrap/**'
+      - 'argocd-apps/**'
+      - 'helm/**'
+      - 'k8s/**'
+      - 'labs/**'
+      - '**.md'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - 'bootstrap/**'
+      - 'argocd-apps/**'
+      - 'helm/**'
+      - 'k8s/**'
+      - 'labs/**'
+      - '**.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

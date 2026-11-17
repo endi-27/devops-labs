@@ -1,0 +1,34 @@
+# Minikube GitOps values for devops-platform (Lab 5 / Argo CD)
+postgres:
+  existingSecret: "postgres-secret"
+
+users:
+  replicas: 2
+  image:
+    repository: ghcr.io/endi-27/devops-users-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  existingSecret: "users-secret"
+
+products:
+  replicas: 1
+  image:
+    repository: ghcr.io/endi-27/devops-products-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  existingSecret: "products-secret"
+
+orders:
+  replicas: 1
+  image:
+    repository: ghcr.io/endi-27/devops-orders-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  existingSecret: "orders-secret"
+
+gateway:
+  replicas: 1
+  image:
+    repository: ghcr.io/endi-27/devops-gateway
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent

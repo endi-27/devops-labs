@@ -15,7 +15,9 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/services/users/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.users.existingSecret }}
         checksum/secret: {{ include (print $.Template.BasePath "/services/users/secret.yaml") . | sha256sum }}
+        {{- end }}
       labels:
         {{- include "devops-platform.labels" . | nindent 8 }}
         app: users
@@ -32,7 +34,7 @@ spec:
             - configMapRef:
                 name: users-config
             - secretRef:
-                name: users-secret
+                name: {{ .Values.users.existingSecret | default "users-secret" }}
           livenessProbe:
             httpGet:
               path: {{ .Values.users.probes.liveness.path | default "/health" }}

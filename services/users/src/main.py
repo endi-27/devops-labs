@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -34,9 +35,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def create_app() -> FastAPI:
+    app_version = os.getenv("APP_VERSION", "1.0.0")
     app = FastAPI(
-        title="Users Service API v1.0.0",
-        version="1.0.0",
+        title=f"Users Service API v{app_version}",
+        version=app_version,
         description="DevOps Platform Users Microservice",
         lifespan=lifespan,
     )
@@ -58,7 +60,15 @@ def create_app() -> FastAPI:
             "service": "users-service",
             "status": "ok",
             "environment": settings.environment,
-            "version": "1.0.0",
+            "version": os.getenv("APP_VERSION", "1.0.0"),
+        }
+
+    @app.get("/version", tags=["Health"], status_code=status.HTTP_200_OK)
+    @app.get("/api/v1/users/version", tags=["Health"], status_code=status.HTTP_200_OK)
+    async def version() -> dict[str, str]:
+        return {
+            "service": "users-service",
+            "version": os.getenv("APP_VERSION", "1.0.0"),
         }
 
     @app.get("/ready", tags=["Health"], status_code=status.HTTP_200_OK)

@@ -11,6 +11,18 @@ async def test_health_check(async_client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_version_endpoint(async_client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_VERSION", "1.1.0")
+    res = await async_client.get("/version")
+    assert res.status_code == 200
+    assert res.json() == {"service": "users-service", "version": "1.1.0"}
+
+    res_gw = await async_client.get("/api/v1/users/version")
+    assert res_gw.status_code == 200
+    assert res_gw.json() == {"service": "users-service", "version": "1.1.0"}
+
+
+@pytest.mark.asyncio
 async def test_users_crud_api_flow(async_client: AsyncClient) -> None:
     create_payload = {
         "email": "devops_student@example.com",

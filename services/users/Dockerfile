@@ -44,6 +44,9 @@ COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser alembic/ ./alembic/
 COPY --chown=appuser:appuser alembic.ini pyproject.toml ./
 
+ARG APP_VERSION=1.0.0
+ENV APP_VERSION=${APP_VERSION}
+
 USER appuser
 
 EXPOSE 8001
