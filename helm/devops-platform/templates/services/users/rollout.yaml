@@ -1,0 +1,58 @@
+{{- if .Values.users.rollout.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: users
+  labels:
+    {{- include "devops-platform.labels" . | nindent 4 }}
+    app: users
+    app.kubernetes.io/name: users
+spec:
+  replicas: {{ .Values.users.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: users
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/services/users/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.users.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/services/users/secret.yaml") . | sha256sum }}
+        {{- end }}
+      labels:
+        {{- include "devops-platform.labels" . | nindent 8 }}
+        app: users
+        app.kubernetes.io/name: users
+    spec:
+      containers:
+        - name: users
+          image: "{{ .Values.users.image.repository }}:{{ .Values.users.image.tag }}"
+          imagePullPolicy: {{ .Values.users.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.users.service.port }}
+              name: http
+          envFrom:
+            - configMapRef:
+                name: users-config
+            - secretRef:
+                name: {{ .Values.users.existingSecret | default "users-secret" }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.users.probes.liveness.path | default "/health" }}
+              port: {{ .Values.users.service.port }}
+            initialDelaySeconds: {{ .Values.users.probes.liveness.initialDelaySeconds | default 15 }}
+            periodSeconds: {{ .Values.users.probes.liveness.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.users.probes.liveness.timeoutSeconds | default 5 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.users.probes.readiness.path | default "/health" }}
+              port: {{ .Values.users.service.port }}
+            initialDelaySeconds: {{ .Values.users.probes.readiness.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .Values.users.probes.readiness.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.users.probes.readiness.timeoutSeconds | default 5 }}
+          resources:
+            {{- toYaml .Values.users.resources | nindent 12 }}
+  strategy:
+    {{- toYaml .Values.users.rollout.strategy | nindent 4 }}
+{{- end }}

@@ -9,6 +9,14 @@ users:
     tag: "1.1.0"
     pullPolicy: IfNotPresent
   existingSecret: "users-secret"
+  rollout:
+    enabled: true
+    strategy:
+      blueGreen:
+        activeService: users
+        previewService: users-preview
+        autoPromotionEnabled: false
+        scaleDownDelaySeconds: 30
 
 products:
   replicas: 1

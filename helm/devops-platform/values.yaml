@@ -76,6 +76,9 @@ redis:
 # Microservice - Users
 users:
   replicas: 2
+  rollout:
+    enabled: false
+    strategy: {}
   image:
     repository: devops-users
     tag: "1.0.0"

@@ -1,3 +1,4 @@
+{{- if not .Values.users.rollout.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,3 +52,4 @@ spec:
             timeoutSeconds: {{ .Values.users.probes.readiness.timeoutSeconds | default 5 }}
           resources:
             {{- toYaml .Values.users.resources | nindent 12 }}
+{{- end }}
