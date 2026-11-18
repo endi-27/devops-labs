@@ -6,7 +6,7 @@ users:
   replicas: 2
   image:
     repository: ghcr.io/endi-27/devops-users-service
-    tag: "9.9.0"
+    tag: "1.1.0"
     pullPolicy: IfNotPresent
   existingSecret: "users-secret"
 
